@@ -34,7 +34,6 @@ bool firstCwnd = true;
 bool firstSshThr = true;
 bool firstRtt = true;
 bool firstRto = true;
-bool firstEstRtt = true;
 bool firstRttVar = true;
 bool firstRealRtt = true;
 bool firstDelta = true;
@@ -46,7 +45,7 @@ Ptr<OutputStreamWrapper> rttStream;
 Ptr<OutputStreamWrapper> rtoStream;
 
 
-Ptr<OutputStreamWrapper> estrttStream;
+
 Ptr<OutputStreamWrapper> rttvarStream;
 Ptr<OutputStreamWrapper> rrttStream;
 Ptr<OutputStreamWrapper> deltaStream;
@@ -57,7 +56,7 @@ uint32_t ssThreshValue;
 
 
 
-std::string path("/NodeList/2/$ns3::TcpL4Protocol/SocketList/0/realRTT");
+std::string path("/NodeList/22$ns3::TcpL4Protocol/SocketList/*/realRTT");
 
 
 /*****************************************************************************/
@@ -118,26 +117,7 @@ RtoTracer (Time oldval, Time newval)
     }
   *rtoStream->GetStream () << Simulator::Now ().GetSeconds () << " " << newval.GetSeconds () << std::endl;
 }
-/********TEST TRACER**********************************************************/
-static void
-EstRttTracer (Time oldval, Time newval)
-{
-  if (firstEstRtt)
-    {
-      *estrttStream->GetStream () << "0.0 " << oldval.GetSeconds () << std::endl;
-      firstEstRtt = false;
-    }
-  *estrttStream->GetStream () << Simulator::Now ().GetSeconds () << " " << newval.GetSeconds () << std::endl;
-}
-
-static void
-TraceEstRtt (std::string estrtt_tr_file_name)
-{
-  AsciiTraceHelper ascii;
-  estrttStream = ascii.CreateFileStream (estrtt_tr_file_name.c_str ());
-  Config::ConnectWithoutContext ("/NodeList/2/$ns3::TcpL4Protocol/SocketList/0/estRTT", MakeCallback (&EstRttTracer));
-}
-
+/********ADDED TRACER**********************************************************/
 
 static void
 RealRttTracer (Time oldval, Time newval)
@@ -147,7 +127,10 @@ RealRttTracer (Time oldval, Time newval)
       *rrttStream->GetStream () << "0.0 " << oldval.GetSeconds () << std::endl;
       firstRealRtt = false;
     }
-  *rrttStream->GetStream () << Simulator::Now ().GetSeconds () << " " << newval.GetSeconds () << std::endl;
+  //*rrttStream->GetStream () << Simulator::Now ().GetSeconds () << " " << newval.GetSeconds () << std::endl;
+  *rrttStream->GetStream () << newval.GetSeconds () << std::endl;
+
+
 }
 
 static void
@@ -189,7 +172,10 @@ DeltaTracer (Time oldval, Time newval)
       *deltaStream->GetStream () << "0.0 " << oldval.GetSeconds () << std::endl;
       firstDelta = false;
     }
-  *deltaStream->GetStream () << Simulator::Now ().GetSeconds () << " " << newval.GetSeconds () << std::endl;
+  //*deltaStream->GetStream () << Simulator::Now ().GetSeconds () << " " << newval.GetSeconds () << std::endl;
+  *deltaStream->GetStream () << newval.GetSeconds () << std::endl;
+
+
 }
 
 static void
@@ -260,7 +246,7 @@ int main (int argc, char *argv[])
   NS_LOG_INFO ("TcpWestwood");
   std::string transport_prot = "TcpWestwood";
   /*error rate/probability */
-  NS_LOG_INFO ("error probabiltiy 0.0");
+  //NS_LOG_INFO ("error probabiltiy 0.0");
   double error_p = 0.0;
 
   /*Default TCP flavor*/
@@ -288,17 +274,16 @@ int main (int argc, char *argv[])
   std::string rto_tr_file_name = "";
 
  /*******ESTIMATE RTT**********/
- std::string estrtt_tr_file_name = "";
  std::string rttvar_tr_file_name = "";
  std::string rrtt_tr_file_name = "";
  std::string delta_tr_file_name = "";
 
   /*Simulation parameters*/
-  NS_LOG_INFO ("TOTAL BYTES 1");
+//  NS_LOG_INFO ("TOTAL MBYTES 1");
   double data_mbytes = 1;
   uint32_t mtu_bytes = 400;
   uint16_t num_flows = 1;
-  float duration = 30;
+  float duration = 10;
   uint32_t run = 0;
   bool flow_monitor = true;
 
@@ -320,11 +305,10 @@ int main (int argc, char *argv[])
   cmd.AddValue ("tr_name", "Name of output trace file [true]", tr_file_name);
   cmd.AddValue ("cwnd_tr_name", "Name of output trace file", cwnd_tr_file_name);
   cmd.AddValue ("ssthresh_tr_name", "Name of output trace file", ssthresh_tr_file_name);
-  cmd.AddValue ("rtt_tr_name", "Name of output trace file", rtt_tr_file_name);
+  cmd.AddValue ("rtt_tr_name", "Name of output trace file for ESIMATED RTT", rtt_tr_file_name);
   cmd.AddValue ("rto_tr_name", "Name of output trace file", rto_tr_file_name);
-  cmd.AddValue ("estrtt_tr_name", "Name of output trace file", estrtt_tr_file_name);
   cmd.AddValue ("rttvar_tr_name", "Name of output trace file", rttvar_tr_file_name);
-  cmd.AddValue ("rrtt_tr_name", "Name of output trace file", rrtt_tr_file_name);
+  cmd.AddValue ("rrtt_tr_name", "Name of output trace file for REAL RTT", rrtt_tr_file_name);
   cmd.AddValue ("delta_tr_name", "Name of output trace file", delta_tr_file_name);
   cmd.AddValue ("data", "Number of Megabytes of data to transmit[0]", data_mbytes);
   cmd.AddValue ("mtu", "Size of IP packets to send in bytes[400]", mtu_bytes);
@@ -339,14 +323,14 @@ int main (int argc, char *argv[])
   // Calculate the ADU size
   Header* temp_header = new Ipv4Header ();
   uint32_t ip_header = temp_header->GetSerializedSize ();
-  NS_LOG_LOGIC ("IP Header size is: " << ip_header);
+  //NS_LOG_LOGIC ("IP Header size is: " << ip_header);
   delete temp_header;
   temp_header = new TcpHeader ();
   uint32_t tcp_header = temp_header->GetSerializedSize ();
-  NS_LOG_LOGIC ("TCP Header size is: " << tcp_header);
+  //NS_LOG_LOGIC ("TCP Header size is: " << tcp_header);
   delete temp_header;
   uint32_t tcp_adu_size = mtu_bytes - (ip_header + tcp_header);
-  NS_LOG_LOGIC ("TCP ADU size is: " << tcp_adu_size);
+  //NS_LOG_LOGIC ("TCP ADU size is: " << tcp_adu_size);
 
 
 
@@ -385,17 +369,34 @@ int main (int argc, char *argv[])
     // Create gateways, sources, and sinks
     NodeContainer leftGate;
     leftGate.Create (1);
+    NS_LOG_INFO ("Number of Nodes After left Gate");
+    NS_LOG_INFO (NodeList::GetNNodes());
+
 
     NodeContainer rightGate;
     rightGate.Create (1);
-
+    NS_LOG_INFO ("Number of Nodes After Right Gate");
+    NS_LOG_INFO (NodeList::GetNNodes());
 
     NodeContainer sources;
     sources.Create (num_flows);
+
+    NS_LOG_INFO ("Number of Nodes After Sources");
+    NS_LOG_INFO (NodeList::GetNNodes());
+
     NodeContainer sinks;
     sinks.Create (num_flows);
 
 
+    NS_LOG_INFO ("Number of Nodes After Sinks");
+    NS_LOG_INFO (NodeList::GetNNodes());
+
+    NS_LOG_INFO ("Source Node Indices");
+
+    Ptr< Node > tmp = sources.Get (0);
+    NS_LOG_INFO (tmp->GetId());
+    tmp = sources.Get (1);
+    NS_LOG_INFO (tmp->GetId());
 
 
 
@@ -559,7 +560,7 @@ int main (int argc, char *argv[])
                 {
                   Simulator::Schedule (Seconds (0.00001), &TraceSsThresh, ssthresh_tr_file_name);
                 }
-
+              /*****estimate RTT**************************************************************/
               if (rtt_tr_file_name.compare ("") != 0)
                 {
                   Simulator::Schedule (Seconds (0.00001), &TraceRtt, rtt_tr_file_name);
@@ -569,18 +570,13 @@ int main (int argc, char *argv[])
                 {
                   Simulator::Schedule (Seconds (0.00001), &TraceRto, rto_tr_file_name);
                 }
-		/*****estimate RTT**************************************************************/
 
-              if (estrtt_tr_file_name.compare ("") != 0)
-                {
-                  Simulator::Schedule (Seconds (0.00001), &TraceEstRtt, estrtt_tr_file_name);
-                }
-  		/*****RTT VAR**************************************************************/
+  		        /*****RTT VARIANCE**************************************************************/
               if (rttvar_tr_file_name.compare ("") != 0)
                 {
                   Simulator::Schedule (Seconds (0.00001), &TraceRttVar, rttvar_tr_file_name);
                 }
-                /*****RTT VAR**************************************************************/
+              /*****REAL RTT**************************************************************/
               if (rrtt_tr_file_name.compare ("") != 0)
                 {
                   Simulator::Schedule (Seconds (0.00001), &TraceRealRtt, rrtt_tr_file_name);

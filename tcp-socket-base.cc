@@ -145,11 +145,6 @@ TcpSocketBase::GetTypeId (void)
 
 
     /********ADDED ********************************************************/
-    .AddTraceSource ("estRTT",
-                    "Current Estimated RTT",
-                    MakeTraceSourceAccessor (&TcpSocketBase::m_estRtt),
-                    "ns3::Time::TracedValueCallback")
-   /***********************************************************************/
    .AddTraceSource ("RTTvar",
                    "RTT variation of current RTT estimate",
                    MakeTraceSourceAccessor (&TcpSocketBase::m_RttVar),
@@ -2286,14 +2281,14 @@ TcpSocketBase::EstimateRtt (const TcpHeader& tcpHeader)
       // RFC 6298, clause 2.4
       m_rto = Max (m_rtt->GetEstimate () + Max (m_clockGranularity, m_rtt->GetVariation ()*4), m_minRto);
 
-      /*Last RTT returned by trace function is SMOOTHED RTT Rather than Actual RTT*/
-
+      /*Last RTT returned by trace function
+       is SMOOTHED RTT Rather than Actual RTT*/
       m_lastRtt = m_rtt->GetEstimate ();
+
       NS_LOG_FUNCTION(this << m_lastRtt);
 
 
       /********ADDED ************************************************/
-      m_estRtt = m_rtt->GetEstimate ();
       m_RttVar = m_rtt->GetVariation ();
       m_rrtt = m_rtt->MeasuredRttSample();
       m_delta = m_rtt->CurrentDelta();

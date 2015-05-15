@@ -699,7 +699,6 @@ protected:
   RttHistory_t      m_history;         //!< List of sent packet
 
   /********ADDED *******************************************************/
-  TracedValue<Time> m_estRtt;            //!< Estimated RTT
   TracedValue<Time> m_RttVar;            //!< Estimated RTT variation from actual val
   TracedValue<Time> m_rrtt;            //!< real sampled RTT values
   TracedValue<Time> m_delta;		//!< Delta sampled - estimated

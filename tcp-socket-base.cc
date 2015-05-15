@@ -143,7 +143,35 @@ TcpSocketBase::GetTypeId (void)
                      MakeTraceSourceAccessor (&TcpSocketBase::m_rWnd),
                      "ns3::TracedValue::Uint32Callback")
 
-  ;
+
+    /********ADDED ********************************************************/
+    .AddTraceSource ("estRTT",
+                    "Current Estimated RTT",
+                    MakeTraceSourceAccessor (&TcpSocketBase::m_estRtt),
+                    "ns3::Time::TracedValueCallback")
+   /***********************************************************************/
+   .AddTraceSource ("RTTvar",
+                   "RTT variation of current RTT estimate",
+                   MakeTraceSourceAccessor (&TcpSocketBase::m_RttVar),
+                   "ns3::Time::TracedValueCallback")
+
+   /***********************************************************************/
+
+   .AddTraceSource ("realRTT",
+                   "Actual Sampled RTT",
+                   MakeTraceSourceAccessor (&TcpSocketBase::m_rrtt),
+                   "ns3::Time::TracedValueCallback")
+
+   /***********************************************************************/
+
+
+  .AddTraceSource ("Delta",
+                   "Delta of current sampled and estimated RTT",
+                   MakeTraceSourceAccessor (&TcpSocketBase::m_delta),
+                   "ns3::Time::TracedValueCallback");
+
+   /***********************************************************************/
+
   return tid;
 }
 
@@ -2262,6 +2290,14 @@ TcpSocketBase::EstimateRtt (const TcpHeader& tcpHeader)
 
       m_lastRtt = m_rtt->GetEstimate ();
       NS_LOG_FUNCTION(this << m_lastRtt);
+
+
+      /********ADDED ************************************************/
+      m_estRtt = m_rtt->GetEstimate ();
+      m_RttVar = m_rtt->GetVariation ();
+      m_rrtt = m_rtt->MeasuredRttSample();
+      m_delta = m_rtt->CurrentDelta();
+      /*********************************************************************/
     }
 }
 

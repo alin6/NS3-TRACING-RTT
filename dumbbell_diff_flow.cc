@@ -1,8 +1,37 @@
 /*****************************************************************************/
-/*                (access)        (shared)        (access)                   */
-/*         source1--------- GW-left-----GW-Right--------sink1                */
-/*         source2---------                     --------sink2                */
-/*                (access2)        (shared)        (access2)                 */
+// This program started life as tcp-variants-comparison.cc provided in the NS3
+// Suite. tcp-variants-comparison.cc was written BY:
+//            Justin P. Rohrer, Truc Anh N. Nguyen <annguyen@ittc.ku.edu>,
+//            Siddharth Gangadhar <siddharth@ittc.ku.edu>
+//
+// All the modified done to this code is performed by Alan Lin. The implentation
+// of this code is aimed to used existing tracing methodology and to add a few
+// more trace sources to give access to the actual sampled RTT, delta between the
+// sampled rtt and estimated RTT.
+//
+// NOTE: The "RTT" trace in the existing suite is mislabelled. The value returned
+//       is actually the output of the rtt estimate. Modifications to
+//       tcp-socket-base.c/h and rtt-estimator.c/h were made to make available the
+//       trace for sampled RTT and the delta.
+//
+// TOPOLOGY:
+//
+//                (access)        (shared)        (access)
+//         source1--------- GW-left-----GW-Right--------sink1
+//         source2---------                     --------sink2
+//                (access2)                        (access2)
+//                    .                                .
+//                    .                                .
+//         sourceN---------                     --------sinkN
+//                (access1/2)        (shared)        (access1/2)
+//
+// Can create N source and sink pair and Flows between each pair.
+// Each pair has their own flow thro a shair pair of gateways that are used
+// by other nodes in the topology.
+//
+// There are two sets of access deleys, one is assigned to odd flows
+// the other is assigned to even flows
+//
 /*****************************************************************************/
 
 #include <iostream>
@@ -44,20 +73,12 @@ Ptr<OutputStreamWrapper> ssThreshStream;
 Ptr<OutputStreamWrapper> rttStream;
 Ptr<OutputStreamWrapper> rtoStream;
 
-
-
 Ptr<OutputStreamWrapper> rttvarStream;
 Ptr<OutputStreamWrapper> rrttStream;
 Ptr<OutputStreamWrapper> deltaStream;
 
 uint32_t cWndValue;
 uint32_t ssThreshValue;
-
-
-
-
-std::string path("/NodeList/22$ns3::TcpL4Protocol/SocketList/*/realRTT");
-
 
 /*****************************************************************************/
 /*CALLBACK FUNCTIONS FOR TRACES                                               */
@@ -117,33 +138,6 @@ RtoTracer (Time oldval, Time newval)
     }
   *rtoStream->GetStream () << Simulator::Now ().GetSeconds () << " " << newval.GetSeconds () << std::endl;
 }
-/********ADDED TRACER**********************************************************/
-
-static void
-RealRttTracer (Time oldval, Time newval)
-{
-  if (firstRealRtt)
-    {
-      *rrttStream->GetStream () << "0.0 " << oldval.GetSeconds () << std::endl;
-      firstRealRtt = false;
-    }
-  //*rrttStream->GetStream () << Simulator::Now ().GetSeconds () << " " << newval.GetSeconds () << std::endl;
-  *rrttStream->GetStream () << newval.GetSeconds () << std::endl;
-
-
-}
-
-static void
-TraceRealRtt (std::string rrtt_tr_file_name)
-{
-  AsciiTraceHelper ascii;
-  rrttStream = ascii.CreateFileStream (rrtt_tr_file_name.c_str ());
- // Config::ConnectWithoutContext ("/NodeList/2/$ns3::TcpL4Protocol/SocketList/0/realRTT", MakeCallback (&RealRttTracer));
-Config::ConnectWithoutContext (path, MakeCallback (&RealRttTracer));
-
-
-}
-
 static void
 RttVarTracer (Time oldval, Time newval)
 {
@@ -155,12 +149,18 @@ RttVarTracer (Time oldval, Time newval)
   *rttvarStream->GetStream () << Simulator::Now ().GetSeconds () << " " << newval.GetSeconds () << std::endl;
 }
 
+
+
+
 static void
-TraceRttVar (std::string rttvar_tr_file_name)
+RealRttTracer (Time oldval, Time newval)
 {
-  AsciiTraceHelper ascii;
-  rttvarStream = ascii.CreateFileStream (rttvar_tr_file_name.c_str ());
-  Config::ConnectWithoutContext ("/NodeList/2/$ns3::TcpL4Protocol/SocketList/0/RTTvar", MakeCallback (&RttVarTracer));
+  if (firstRealRtt)
+    {
+      *rrttStream->GetStream () << "0.0 " << oldval.GetSeconds () << std::endl;
+      firstRealRtt = false;
+    }
+  *rrttStream->GetStream () << Simulator::Now ().GetSeconds () << " " << newval.GetSeconds () << std::endl;
 }
 
 
@@ -172,20 +172,8 @@ DeltaTracer (Time oldval, Time newval)
       *deltaStream->GetStream () << "0.0 " << oldval.GetSeconds () << std::endl;
       firstDelta = false;
     }
-  //*deltaStream->GetStream () << Simulator::Now ().GetSeconds () << " " << newval.GetSeconds () << std::endl;
-  *deltaStream->GetStream () << newval.GetSeconds () << std::endl;
-
-
+  *deltaStream->GetStream () << Simulator::Now ().GetSeconds () << " " << newval.GetSeconds () << std::endl;
 }
-
-static void
-TraceDelta (std::string delta_tr_file_name)
-{
-  AsciiTraceHelper ascii;
-  deltaStream = ascii.CreateFileStream (delta_tr_file_name.c_str ());
-  Config::ConnectWithoutContext ("/NodeList/2/$ns3::TcpL4Protocol/SocketList/0/Delta", MakeCallback (&DeltaTracer));
-}
-
 
 
 
@@ -225,6 +213,28 @@ TraceRto (std::string rto_tr_file_name)
   rtoStream = ascii.CreateFileStream (rto_tr_file_name.c_str ());
   Config::ConnectWithoutContext ("/NodeList/2/$ns3::TcpL4Protocol/SocketList/0/RTO", MakeCallback (&RtoTracer));
 }
+static void
+TraceRealRtt (std::string rrtt_tr_file_name)
+{
+  AsciiTraceHelper ascii;
+  rrttStream = ascii.CreateFileStream (rrtt_tr_file_name.c_str ());
+  Config::ConnectWithoutContext ("/NodeList/2/$ns3::TcpL4Protocol/SocketList/0/realRTT", MakeCallback (&RealRttTracer));
+}
+static void
+TraceRttVar (std::string rttvar_tr_file_name)
+{
+  AsciiTraceHelper ascii;
+  rttvarStream = ascii.CreateFileStream (rttvar_tr_file_name.c_str ());
+  Config::ConnectWithoutContext ("/NodeList/2/$ns3::TcpL4Protocol/SocketList/0/RTTvar", MakeCallback (&RttVarTracer));
+}
+static void
+TraceDelta (std::string delta_tr_file_name)
+{
+  AsciiTraceHelper ascii;
+  deltaStream = ascii.CreateFileStream (delta_tr_file_name.c_str ());
+  Config::ConnectWithoutContext ("/NodeList/2/$ns3::TcpL4Protocol/SocketList/0/Delta", MakeCallback (&DeltaTracer));
+}
+
 
 
 int main (int argc, char *argv[])
@@ -233,7 +243,7 @@ int main (int argc, char *argv[])
   // User may find it convenient to enable logging
   LogComponentEnable("DumbbellDifferingFlows", LOG_LEVEL_ALL);
   LogComponentEnable("BulkSendApplication", LOG_LEVEL_INFO);
-  LogComponentEnable("RttEstimator", LOG_LEVEL_INFO);
+  //LogComponentEnable("RttEstimator", LOG_LEVEL_INFO);
   //LogComponentEnable("DropTailQueue", LOG_LEVEL_ALL);
 
 
@@ -242,8 +252,8 @@ int main (int argc, char *argv[])
   //
 
   /*Default TCP flavor*/
-  NS_LOG_INFO ("DEFAULT SETTINGS");
-  NS_LOG_INFO ("TcpWestwood");
+  //NS_LOG_INFO ("DEFAULT SETTINGS");
+  //NS_LOG_INFO ("TcpWestwood");
   std::string transport_prot = "TcpWestwood";
   /*error rate/probability */
   //NS_LOG_INFO ("error probabiltiy 0.0");
@@ -272,18 +282,15 @@ int main (int argc, char *argv[])
   std::string ssthresh_tr_file_name = "";
   std::string rtt_tr_file_name = "";
   std::string rto_tr_file_name = "";
-
- /*******ESTIMATE RTT**********/
  std::string rttvar_tr_file_name = "";
  std::string rrtt_tr_file_name = "";
  std::string delta_tr_file_name = "";
 
   /*Simulation parameters*/
-//  NS_LOG_INFO ("TOTAL MBYTES 1");
   double data_mbytes = 1;
   uint32_t mtu_bytes = 400;
   uint16_t num_flows = 1;
-  float duration = 10;
+  float duration = 30;
   uint32_t run = 0;
   bool flow_monitor = true;
 
@@ -369,37 +376,29 @@ int main (int argc, char *argv[])
     // Create gateways, sources, and sinks
     NodeContainer leftGate;
     leftGate.Create (1);
-    NS_LOG_INFO ("Number of Nodes After left Gate");
-    NS_LOG_INFO (NodeList::GetNNodes());
+    NS_LOG_INFO ("Number of Nodes After left Gate: " << NodeList::GetNNodes());
 
 
     NodeContainer rightGate;
     rightGate.Create (1);
-    NS_LOG_INFO ("Number of Nodes After Right Gate");
-    NS_LOG_INFO (NodeList::GetNNodes());
+    NS_LOG_INFO ("Number of Nodes After Right Gate: " << NodeList::GetNNodes());
+
 
     NodeContainer sources;
     sources.Create (num_flows);
 
-    NS_LOG_INFO ("Number of Nodes After Sources");
-    NS_LOG_INFO (NodeList::GetNNodes());
+    NS_LOG_INFO ("Totoal Number of Nodes After Sources: " << NodeList::GetNNodes());
 
     NodeContainer sinks;
     sinks.Create (num_flows);
 
-
-    NS_LOG_INFO ("Number of Nodes After Sinks");
-    NS_LOG_INFO (NodeList::GetNNodes());
-
-    NS_LOG_INFO ("Source Node Indices");
-
+    NS_LOG_INFO ("Total Number of Flows: " << num_flows);
+    NS_LOG_INFO ("Total Number of Nodes After Sinks: " << NodeList::GetNNodes());
     Ptr< Node > tmp = sources.Get (0);
-    NS_LOG_INFO (tmp->GetId());
-    tmp = sources.Get (1);
-    NS_LOG_INFO (tmp->GetId());
-
-
-
+    NS_LOG_INFO ("First Source Node Index: " << tmp->GetId());
+    tmp = sinks.Get (0);
+    NS_LOG_INFO ("First Sink Node Index: " << tmp->GetId());
+    NS_LOG_INFO ("TCP Flavor: " << transport_prot);
 
 
     // Configure the error model
@@ -430,9 +429,6 @@ int main (int argc, char *argv[])
     address.SetBase ("10.0.0.0", "255.255.0.0");
 
     Ipv4InterfaceContainer backbone = address.Assign(gates);
-
-
-  //  address.SetBase ("10.0.1.0", "255.255.255.0");
 
     // Configure the sources and sinks net devices
     // and the channels between the sources/sinks and the gateways
@@ -606,7 +602,7 @@ int main (int argc, char *argv[])
 
           if (flow_monitor)
             {
-              flowHelper.SerializeToXmlFile ("TcpVariantsComparison.flowmonitor", true, true);
+              flowHelper.SerializeToXmlFile ("DumbbellDifferingFlows.flowmonitor", true, true);
             }
 
           Simulator::Destroy ();

@@ -34,6 +34,13 @@
 #include "ns3/log.h"
 
 
+
+/********ADDED********************************************************/
+std::ofstream outfile;
+double est_counter =0;
+/**********************************************************************/
+
+
 namespace ns3 {
 
 NS_LOG_COMPONENT_DEFINE ("RttEstimator");
@@ -60,6 +67,19 @@ RttEstimator::GetTypeId (void)
 Time
 RttEstimator::GetEstimate (void) const
 {
+  /********ADDED ***************************************************/
+  /*
+  //NS_LOG_INFO ("estimate");
+
+  outfile.open("estimate_rtt.txt", std::ios_base::app);
+  NS_LOG_INFO (m_estimatedRtt);
+  outfile << est_counter++;
+  outfile << " ";
+  outfile << m_estimatedRtt;
+  outfile << "\n";
+  outfile.close();*/
+
+
   return m_estimatedRtt;
 }
 
@@ -227,7 +247,33 @@ RttMeanDeviation::IntegerUpdate (Time m, uint32_t rttShift, uint32_t variationSh
 
 
   int64_t meas = m.GetInteger ();
+
+  /*USED TO RETURN REAL RTT*/
+  m_SampledRTT = Time::From(meas) ;
+
+
   int64_t delta = meas - m_estimatedRtt.GetInteger ();
+
+ /*USED TO RETURN CURRENT DELTA*/
+
+  m_CurrentDelta = Time::From(delta);
+
+
+  /**** Delta = Measured RTT - m_estimatedRtt???******************
+
+  outfile.open("measured_n_delta.txt", std::ios_base::app);
+  //NS_LOG_INFO (m_estimatedRtt);
+  outfile << est_counter++;
+  outfile << " ";
+  outfile << meas;
+  outfile << " ";
+  outfile << delta;
+  outfile << "\n";
+  outfile.close();*/
+
+  /************************************************************************/
+
+
   int64_t srtt = (m_estimatedRtt.GetInteger () << rttShift) + delta;
   m_estimatedRtt = Time::From (srtt >> rttShift);
   if (delta < 0)
@@ -284,5 +330,20 @@ RttMeanDeviation::Reset ()
   NS_LOG_FUNCTION (this);
   RttEstimator::Reset ();
 }
+
+Time
+RttEstimator::MeasuredRttSample(void) const
+{
+  return m_SampledRTT;
+}
+
+Time
+RttEstimator::CurrentDelta(void) const
+{
+  return m_CurrentDelta;
+}
+
+
+
 
 } //namespace ns3

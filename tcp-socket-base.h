@@ -698,6 +698,11 @@ protected:
   Time              m_cnTimeout;       //!< Timeout for connection retry
   RttHistory_t      m_history;         //!< List of sent packet
 
+  /********ADDED *******************************************************/
+  TracedValue<Time> m_estRtt;            //!< Estimated RTT
+  TracedValue<Time> m_RttVar;            //!< Estimated RTT variation from actual val
+  TracedValue<Time> m_rrtt;            //!< real sampled RTT values
+  TracedValue<Time> m_delta;		//!< Delta sampled - estimated
 
   // Connections to other layers of TCP/IP
   Ipv4EndPoint*       m_endPoint;   //!< the IPv4 endpoint

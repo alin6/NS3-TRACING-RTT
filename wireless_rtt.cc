@@ -1,17 +1,5 @@
 /* -*- Mode:C++; c-file-style:"gnu"; indent-tabs-mode:nil; -*- */
-/*
- * This program is free software; you can redistribute it and/or modify
- * it under the terms of the GNU General Public License version 2 as
- * published by the Free Software Foundation;
- *
- * This program is distributed in the hope that it will be useful,
- * but WITHOUT ANY WARRANTY; without even the implied warranty of
- * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
- * GNU General Public License for more details.
- *
- * You should have received a copy of the GNU General Public License
- * along with this program; if not, write to the Free Software
- * Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA  02111-1307  USA
+/* Skeleton code wireless-tcp-bulk-send.cc
  */
 
 #include <string>
@@ -35,21 +23,32 @@ using namespace std;
 
 NS_LOG_COMPONENT_DEFINE ("WirelessRtt");
 
-
 bool firstCwnd = true;
 bool firstSshThr = true;
 bool firstRtt = true;
 bool firstRto = true;
-bool firstRwin = true;
+bool firstRttVar = true;
+bool firstRealRtt = true;
+bool firstDelta = true;
+
+
 Ptr<OutputStreamWrapper> cWndStream;
 Ptr<OutputStreamWrapper> ssThreshStream;
 Ptr<OutputStreamWrapper> rttStream;
 Ptr<OutputStreamWrapper> rtoStream;
-Ptr<OutputStreamWrapper> rwinStream;
+
+Ptr<OutputStreamWrapper> rttvarStream;
+Ptr<OutputStreamWrapper> rrttStream;
+Ptr<OutputStreamWrapper> deltaStream;
+
 uint32_t cWndValue;
 uint32_t ssThreshValue;
 
 
+
+/*****************************************************************************/
+/*CALLBACK FUNCTIONS FOR TRACES                                               */
+/*****************************************************************************/
 static void
 CwndTracer (uint32_t oldval, uint32_t newval)
 {
@@ -105,19 +104,50 @@ RtoTracer (Time oldval, Time newval)
     }
   *rtoStream->GetStream () << Simulator::Now ().GetSeconds () << " " << newval.GetSeconds () << std::endl;
 }
-
 static void
-RwinTracer (uint32_t oldval, uint32_t newval)
+RttVarTracer (Time oldval, Time newval)
 {
-  if (firstRwin)
+  if (firstRttVar)
     {
-      *rtoStream->GetStream () << "0.0 " << oldval << std::endl;
-      firstRwin = false;
+      *rttvarStream->GetStream () << "0.0 " << oldval.GetSeconds () << std::endl;
+      firstRttVar = false;
     }
-  *rwinStream->GetStream () << Simulator::Now ().GetSeconds () << " " << newval << std::endl;
+  *rttvarStream->GetStream () << Simulator::Now ().GetSeconds () << " " << newval.GetSeconds () << std::endl;
 }
 
 
+
+
+static void
+RealRttTracer (Time oldval, Time newval)
+{
+  if (firstRealRtt)
+    {
+      *rrttStream->GetStream () << "0.0 " << oldval.GetSeconds () << std::endl;
+      firstRealRtt = false;
+    }
+  *rrttStream->GetStream () << Simulator::Now ().GetSeconds () << " " << newval.GetSeconds () << std::endl;
+}
+
+
+static void
+DeltaTracer (Time oldval, Time newval)
+{
+  if (firstDelta)
+    {
+      *deltaStream->GetStream () << "0.0 " << oldval.GetSeconds () << std::endl;
+      firstDelta = false;
+    }
+  *deltaStream->GetStream () << Simulator::Now ().GetSeconds () << " " << newval.GetSeconds () << std::endl;
+}
+
+
+
+/*****************************************************************************/
+
+/*****************************************************************************/
+/*SETTING UP FILES FOR STORING TRACE VALUES                                  */
+/*****************************************************************************/
 static void
 TraceCwnd (std::string cwnd_tr_file_name)
 {
@@ -149,14 +179,28 @@ TraceRto (std::string rto_tr_file_name)
   rtoStream = ascii.CreateFileStream (rto_tr_file_name.c_str ());
   Config::ConnectWithoutContext ("/NodeList/*/$ns3::TcpL4Protocol/SocketList/*/RTO", MakeCallback (&RtoTracer));
 }
-
 static void
-TraceRwin (std::string rwin_tr_file_name)
+TraceRealRtt (std::string rrtt_tr_file_name)
 {
   AsciiTraceHelper ascii;
-  rwinStream = ascii.CreateFileStream (rwin_tr_file_name.c_str ());
-  Config::ConnectWithoutContext ("/NodeList/*/$ns3::TcpL4Protocol/SocketList/*/RWND", MakeCallback (&RwinTracer));
+  rrttStream = ascii.CreateFileStream (rrtt_tr_file_name.c_str ());
+  Config::ConnectWithoutContext ("/NodeList/*/$ns3::TcpL4Protocol/SocketList/*/realRTT", MakeCallback (&RealRttTracer));
 }
+static void
+TraceRttVar (std::string rttvar_tr_file_name)
+{
+  AsciiTraceHelper ascii;
+  rttvarStream = ascii.CreateFileStream (rttvar_tr_file_name.c_str ());
+  Config::ConnectWithoutContext ("/NodeList/*/$ns3::TcpL4Protocol/SocketList/*/RTTvar", MakeCallback (&RttVarTracer));
+}
+static void
+TraceDelta (std::string delta_tr_file_name)
+{
+  AsciiTraceHelper ascii;
+  deltaStream = ascii.CreateFileStream (delta_tr_file_name.c_str ());
+  Config::ConnectWithoutContext ("/NodeList/*/$ns3::TcpL4Protocol/SocketList/*/Delta", MakeCallback (&DeltaTracer));
+}
+
 
 //void get_throughput(Ptr<PacketSink> sink_a)
 //{
@@ -192,19 +236,27 @@ PhyTxTrace (std::string context, Ptr<const Packet> packet, WifiMode mode, WifiPr
 int
 main (int argc, char *argv[])
 {
-  uint32_t maxBytes = 0;
-  double SimTime = 20.0;
+  uint32_t maxBytes = 3000;
+  double SimTime = 30.0;
+
+
+  LogComponentEnable("WirelessRtt", LOG_LEVEL_INFO);
+
 //  LogComponentEnable("ConstantRateWifiManager", LOG_LEVEL_INFO);
 //  LogComponentEnable ("BulkSendApplication", LOG_LEVEL_INFO);
 //  LogComponentEnable ("TcpSocketBase", LOG_LEVEL_LOGIC);
 
   std::string traceFile = "wireless.ns_movements";
-
+  std::string tr_file_name = "";
   std::string cwnd_tr_file_name = "wireless.cwnd";
   std::string ssthresh_tr_file_name = "wireless.ssth";
   std::string rtt_tr_file_name = "wireless.rtt";
   std::string rto_tr_file_name = "wireless.rto";
   std::string rwin_tr_file_name = "wireless.rwin";
+  std::string rttvar_tr_file_name = "";
+  std::string rrtt_tr_file_name = "wireless.rrtt";
+  std::string delta_tr_file_name = "wireless.delta";
+
 
   Config::SetDefault ("ns3::TcpL4Protocol::SocketType", TypeIdValue (TcpWestwood::GetTypeId ()));
   Config::SetDefault ("ns3::TcpWestwood::ProtocolType", EnumValue (TcpWestwood::WESTWOODPLUS));
@@ -277,9 +329,26 @@ main (int argc, char *argv[])
   Ipv4InterfaceContainer i = ipv4.Assign (apContainer);
   Ipv4InterfaceContainer i1 = ipv4.Assign (wifiContainer);
 
-// Configure mobility
-  Ns2MobilityHelper mobility(traceFile);
-  mobility.Install();
+/*Configure mobility -  DEBUGGING
+//  Ns2MobilityHelper mobility(traceFile);
+//  mobility.Install();
+*/
+
+// mobility.
+MobilityHelper mobility;
+Ptr<ListPositionAllocator> positionAlloc = CreateObject<ListPositionAllocator> ();
+
+positionAlloc->Add (Vector (0.0, 0.0, 0.0));
+positionAlloc->Add (Vector (1.0, 0.0, 15.0));
+mobility.SetPositionAllocator (positionAlloc);
+
+mobility.SetMobilityModel ("ns3::ConstantPositionMobilityModel");
+
+mobility.Install (ap);
+mobility.Install (stas);
+
+
+
 
 
   NS_LOG_INFO ("Create Applications.");
@@ -294,7 +363,9 @@ main (int argc, char *argv[])
                          InetSocketAddress (i1.GetAddress (0), port));
   //source.SetAttribute("SendSize", UintegerValue (1500));
   // Set the amount of data to send in bytes.  Zero is unlimited.
-  source.SetAttribute ("MaxBytes", UintegerValue (maxBytes));
+  source.SetAttribute ("MaxBytes", UintegerValue (int(maxBytes* 100000)));
+
+
   ApplicationContainer sourceApps = source.Install (ap.Get (0));
   sourceApps.Start (Seconds (0.0));
   sourceApps.Stop (Seconds (SimTime));
@@ -338,30 +409,51 @@ main (int argc, char *argv[])
 //  Simulator::Schedule(Seconds(0.1), &get_throughput, sink1);
 
 
-  if (cwnd_tr_file_name.compare ("") != 0)
-    {
-      Simulator::Schedule (Seconds (0.00001), &TraceCwnd, cwnd_tr_file_name);
-    }
+if (tr_file_name.compare ("") != 0)
+  {
+    std::ofstream ascii;
+    Ptr<OutputStreamWrapper> ascii_wrap;
+    ascii.open (tr_file_name.c_str ());
+    ascii_wrap = new OutputStreamWrapper (tr_file_name.c_str (), std::ios::out);
+    internet.EnableAsciiIpv4All (ascii_wrap);
+  }
 
-  if (ssthresh_tr_file_name.compare ("") != 0)
-    {
-      Simulator::Schedule (Seconds (1.00001), &TraceSsThresh, ssthresh_tr_file_name);
-    }
+if (cwnd_tr_file_name.compare ("") != 0)
+  {
+    Simulator::Schedule (Seconds (0.00001), &TraceCwnd, cwnd_tr_file_name);
+  }
 
-  if (rtt_tr_file_name.compare ("") != 0)
-    {
-      Simulator::Schedule (Seconds (0.00001), &TraceRtt, rtt_tr_file_name);
-    }
+if (ssthresh_tr_file_name.compare ("") != 0)
+  {
+    Simulator::Schedule (Seconds (0.00001), &TraceSsThresh, ssthresh_tr_file_name);
+  }
+/*****estimate RTT**************************************************************/
+if (rtt_tr_file_name.compare ("") != 0)
+  {
+    Simulator::Schedule (Seconds (0.00001), &TraceRtt, rtt_tr_file_name);
+  }
 
-  if (rto_tr_file_name.compare ("") != 0)
-    {
-      Simulator::Schedule (Seconds (0.00001), &TraceRto, rto_tr_file_name);
-    }
+if (rto_tr_file_name.compare ("") != 0)
+  {
+    Simulator::Schedule (Seconds (0.00001), &TraceRto, rto_tr_file_name);
+  }
 
-  if (rwin_tr_file_name.compare ("") != 0)
-    {
-      Simulator::Schedule (Seconds (0.00001), &TraceRwin, rwin_tr_file_name);
-    }
+/*****RTT VARIANCE**************************************************************/
+if (rttvar_tr_file_name.compare ("") != 0)
+  {
+    Simulator::Schedule (Seconds (0.00001), &TraceRttVar, rttvar_tr_file_name);
+  }
+/*****REAL RTT**************************************************************/
+if (rrtt_tr_file_name.compare ("") != 0)
+  {
+    Simulator::Schedule (Seconds (0.00001), &TraceRealRtt, rrtt_tr_file_name);
+  }
+
+  /*****Delta**************************************************************/
+if (delta_tr_file_name.compare ("") != 0)
+  {
+    Simulator::Schedule (Seconds (0.00001), &TraceDelta, delta_tr_file_name);
+  }
 
 
   NS_LOG_INFO ("Run Simulation.");

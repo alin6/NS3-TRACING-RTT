@@ -32,11 +32,14 @@ bool firstRealRtt = true;
 bool firstDelta = true;
 
 
+/*****************************************************************************/
+/* OUTPUT STREAMS                                                            */
+/*****************************************************************************/
+
 Ptr<OutputStreamWrapper> cWndStream;
 Ptr<OutputStreamWrapper> ssThreshStream;
 Ptr<OutputStreamWrapper> rttStream;
 Ptr<OutputStreamWrapper> rtoStream;
-
 Ptr<OutputStreamWrapper> rttvarStream;
 Ptr<OutputStreamWrapper> rrttStream;
 Ptr<OutputStreamWrapper> deltaStream;
@@ -44,6 +47,18 @@ Ptr<OutputStreamWrapper> deltaStream;
 uint32_t cWndValue;
 uint32_t ssThreshValue;
 
+
+/*****************************************************************************/
+/* TRACE PATHS                                                               */
+/*****************************************************************************/
+
+std::string CwndPath("/NodeList/*/$ns3::TcpL4Protocol/SocketList/*/CongestionWindow");
+std::string ssThreshPath("/NodeList/*/$ns3::TcpL4Protocol/SocketList/*/SlowStartThreshold");
+std::string RealRttPath("/NodeList/*/$ns3::TcpL4Protocol/SocketList/*/realRTT");
+std::string estRttPath("/NodeList/*/$ns3::TcpL4Protocol/SocketList/*/RTT");
+std::string RtoPath("/NodeList/*/$ns3::TcpL4Protocol/SocketList/*/RTO");
+std::string RttVarPath("/NodeList/*/$ns3::TcpL4Protocol/SocketList/*/RTTvar");
+std::string DeltaPath("/NodeList/*/$ns3::TcpL4Protocol/SocketList/*/Delta");
 
 
 /*****************************************************************************/
@@ -153,7 +168,7 @@ TraceCwnd (std::string cwnd_tr_file_name)
 {
   AsciiTraceHelper ascii;
   cWndStream = ascii.CreateFileStream (cwnd_tr_file_name.c_str ());
-  Config::ConnectWithoutContext ("/NodeList/*/$ns3::TcpL4Protocol/SocketList/*/CongestionWindow", MakeCallback (&CwndTracer));
+  Config::ConnectWithoutContext (CwndPath, MakeCallback (&CwndTracer));
 }
 
 static void
@@ -161,7 +176,7 @@ TraceSsThresh (std::string ssthresh_tr_file_name)
 {
   AsciiTraceHelper ascii;
   ssThreshStream = ascii.CreateFileStream (ssthresh_tr_file_name.c_str ());
-  Config::ConnectWithoutContext ("/NodeList/*/$ns3::TcpL4Protocol/SocketList/*/SlowStartThreshold", MakeCallback (&SsThreshTracer));
+  Config::ConnectWithoutContext (ssThreshPath, MakeCallback (&SsThreshTracer));
 }
 
 static void
@@ -169,7 +184,7 @@ TraceRtt (std::string rtt_tr_file_name)
 {
   AsciiTraceHelper ascii;
   rttStream = ascii.CreateFileStream (rtt_tr_file_name.c_str ());
-  Config::ConnectWithoutContext ("/NodeList/*/$ns3::TcpL4Protocol/SocketList/*/RTT", MakeCallback (&RttTracer));
+  Config::ConnectWithoutContext (estRttPath, MakeCallback (&RttTracer));
 }
 
 static void
@@ -177,54 +192,30 @@ TraceRto (std::string rto_tr_file_name)
 {
   AsciiTraceHelper ascii;
   rtoStream = ascii.CreateFileStream (rto_tr_file_name.c_str ());
-  Config::ConnectWithoutContext ("/NodeList/*/$ns3::TcpL4Protocol/SocketList/*/RTO", MakeCallback (&RtoTracer));
+  Config::ConnectWithoutContext (RtoPath, MakeCallback (&RtoTracer));
 }
 static void
 TraceRealRtt (std::string rrtt_tr_file_name)
 {
   AsciiTraceHelper ascii;
   rrttStream = ascii.CreateFileStream (rrtt_tr_file_name.c_str ());
-  Config::ConnectWithoutContext ("/NodeList/*/$ns3::TcpL4Protocol/SocketList/*/realRTT", MakeCallback (&RealRttTracer));
+  Config::ConnectWithoutContext (RealRttPath, MakeCallback (&RealRttTracer));
 }
 static void
 TraceRttVar (std::string rttvar_tr_file_name)
 {
   AsciiTraceHelper ascii;
   rttvarStream = ascii.CreateFileStream (rttvar_tr_file_name.c_str ());
-  Config::ConnectWithoutContext ("/NodeList/*/$ns3::TcpL4Protocol/SocketList/*/RTTvar", MakeCallback (&RttVarTracer));
+  Config::ConnectWithoutContext (RttVarPath, MakeCallback (&RttVarTracer));
 }
 static void
 TraceDelta (std::string delta_tr_file_name)
 {
   AsciiTraceHelper ascii;
   deltaStream = ascii.CreateFileStream (delta_tr_file_name.c_str ());
-  Config::ConnectWithoutContext ("/NodeList/*/$ns3::TcpL4Protocol/SocketList/*/Delta", MakeCallback (&DeltaTracer));
+  Config::ConnectWithoutContext (DeltaPath, MakeCallback (&DeltaTracer));
 }
 
-
-//void get_throughput(Ptr<PacketSink> sink_a)
-//{
-//
-//  // Throughput calculation.
-//  // Transfer Size = sink->GetTotalRx()
-//  // Throughput = Transfer Size/Time
-//  // fprintf for writing simultaneuosly into file used for generating graphs
-//
-//  Time t = Simulator::Now();
-//  printf("Current time:%f seconds.\n",t.GetSeconds());
-//
-//  //connection 1
-//  int bytesTotal = sink_a->GetTotalRx();
-//  float throughput = (bytesTotal*8.0)/1000/t.GetSeconds();
-//  printf("Throughput at sink : %f Kbps.\n",throughput);
-//  //printf("%f\t",t.GetSeconds());
-//  //printf("%f\n",throughput);
-//
-//  if(t.GetSeconds()<50.1)
-//  {
-//    Simulator::Schedule(Seconds(0.5), &get_throughput, sink_a);
-//  }
-//}
 
 void
 PhyTxTrace (std::string context, Ptr<const Packet> packet, WifiMode mode, WifiPreamble preamble, uint8_t txPower)
@@ -236,32 +227,98 @@ PhyTxTrace (std::string context, Ptr<const Packet> packet, WifiMode mode, WifiPr
 int
 main (int argc, char *argv[])
 {
-  uint32_t maxBytes = 3000;
-  double SimTime = 30.0;
+  uint32_t maxBytes = 3000; //megaBytes
+  double SimTime = 10.0;
+  std::string transport_prot = "TcpWestwood";
+  //NS_LOG_INFO ("error probabiltiy 0.0");
+  double error_p = 0.0;
+
+  uint32_t run = 0;
+  uint32_t seed = 1;
+  double range = 250;
 
 
+  /*LOG COMPONENTS*/
   LogComponentEnable("WirelessRtt", LOG_LEVEL_INFO);
-
-//  LogComponentEnable("ConstantRateWifiManager", LOG_LEVEL_INFO);
-//  LogComponentEnable ("BulkSendApplication", LOG_LEVEL_INFO);
-//  LogComponentEnable ("TcpSocketBase", LOG_LEVEL_LOGIC);
+  //  LogComponentEnable("ConstantRateWifiManager", LOG_LEVEL_INFO);
+  //  LogComponentEnable ("BulkSendApplication", LOG_LEVEL_INFO);
+  //  LogComponentEnable ("TcpSocketBase", LOG_LEVEL_LOGIC);
 
   std::string traceFile = "wireless.ns_movements";
   std::string tr_file_name = "";
-  std::string cwnd_tr_file_name = "wireless.cwnd";
-  std::string ssthresh_tr_file_name = "wireless.ssth";
+  std::string cwnd_tr_file_name = "";
+  std::string ssthresh_tr_file_name = "";
   std::string rtt_tr_file_name = "wireless.rtt";
-  std::string rto_tr_file_name = "wireless.rto";
-  std::string rwin_tr_file_name = "wireless.rwin";
+  std::string rto_tr_file_name = "";
+  std::string rwin_tr_file_name = "";
   std::string rttvar_tr_file_name = "";
   std::string rrtt_tr_file_name = "wireless.rrtt";
   std::string delta_tr_file_name = "wireless.delta";
 
 
-  Config::SetDefault ("ns3::TcpL4Protocol::SocketType", TypeIdValue (TcpWestwood::GetTypeId ()));
-  Config::SetDefault ("ns3::TcpWestwood::ProtocolType", EnumValue (TcpWestwood::WESTWOODPLUS));
-  Config::SetDefault ("ns3::TcpWestwood::FilterType", EnumValue (TcpWestwood::TUSTIN));
+
+
+  CommandLine cmd;
+  cmd.AddValue ("transport_prot", "Transport protocol to use: TcpTahoe, TcpReno, TcpNewReno, TcpWestwood, TcpWestwoodPlus ", transport_prot);
+  cmd.AddValue ("MBytes", "maximum number of megabytes during the transfer[3000]", maxBytes);
+  cmd.AddValue ("error_p", "Packet error rate[0.0]", error_p);
+  cmd.AddValue ("seed", "set seed repeatable runs[1]", seed);
+  cmd.AddValue ("run", "Run index (for setting repeatable seeds)", run);
+  cmd.AddValue ("duration", "Time to allow flows to run in seconds[30]", SimTime);
+  cmd.AddValue ("tr_name", "Name of output trace file [true]", tr_file_name);
+  cmd.AddValue ("rwnd_tr_name", "Name of output trace file", rwin_tr_file_name);
+  cmd.AddValue ("cwnd_tr_name", "Name of output trace file", cwnd_tr_file_name);
+  cmd.AddValue ("ssthresh_tr_name", "Name of output trace file", ssthresh_tr_file_name);
+  cmd.AddValue ("rtt_tr_name", "Name of output trace file for ESIMATED RTT", rtt_tr_file_name);
+  cmd.AddValue ("rto_tr_name", "Name of output trace file", rto_tr_file_name);
+  cmd.AddValue ("rttvar_tr_name", "Name of output trace file", rttvar_tr_file_name);
+  cmd.AddValue ("rrtt_tr_name", "Name of output trace file for REAL RTT", rrtt_tr_file_name);
+  cmd.AddValue ("delta_tr_name", "Name of output trace file", delta_tr_file_name);
+  cmd.AddValue ("tr_name", "Name of output trace file [true]", tr_file_name);
+  cmd.AddValue ("range", "Cutoff range of transmission [250]", range);
+  cmd.Parse (argc, argv);
+
+
+
+
+  SeedManager::SetSeed (seed);
+  SeedManager::SetRun (run);
+
+
+  /*TCP CONFIGURATION*/
   Config::SetDefault ("ns3::TcpSocketBase::WindowScaling", BooleanValue (true));
+  if (transport_prot.compare ("TcpTahoe") == 0)
+    {
+      Config::SetDefault ("ns3::TcpL4Protocol::SocketType", TypeIdValue (TcpTahoe::GetTypeId ()));
+    }
+  else if (transport_prot.compare ("TcpReno") == 0)
+    {
+      Config::SetDefault ("ns3::TcpL4Protocol::SocketType", TypeIdValue (TcpReno::GetTypeId ()));
+    }
+  else if (transport_prot.compare ("TcpNewReno") == 0)
+    {
+      Config::SetDefault ("ns3::TcpL4Protocol::SocketType", TypeIdValue (TcpNewReno::GetTypeId ()));
+    }
+  else if (transport_prot.compare ("TcpWestwood") == 0)
+    { // the default protocol type in ns3::TcpWestwood is WESTWOOD
+      Config::SetDefault ("ns3::TcpL4Protocol::SocketType", TypeIdValue (TcpWestwood::GetTypeId ()));
+      Config::SetDefault ("ns3::TcpWestwood::FilterType", EnumValue (TcpWestwood::TUSTIN));
+    }
+  else if (transport_prot.compare ("TcpWestwoodPlus") == 0)
+    {
+      Config::SetDefault ("ns3::TcpL4Protocol::SocketType", TypeIdValue (TcpWestwood::GetTypeId ()));
+      Config::SetDefault ("ns3::TcpWestwood::ProtocolType", EnumValue (TcpWestwood::WESTWOODPLUS));
+      Config::SetDefault ("ns3::TcpWestwood::FilterType", EnumValue (TcpWestwood::TUSTIN));
+
+    }
+  else
+    {
+      NS_LOG_DEBUG ("Invalid TCP version");
+      exit (1);
+    }
+
+
+
 
 //
 // Explicitly create the nodes required by the topology (shown above).
@@ -269,26 +326,57 @@ main (int argc, char *argv[])
   NS_LOG_INFO ("Create nodes.");
   NodeContainer stas, ap;
   ap.Create(1);
+  NS_LOG_INFO ("Number of Nodes After AP: " << NodeList::GetNNodes());
+
   stas.Create(1);
+  NS_LOG_INFO ("Total Number of Nodes After Stations: " << NodeList::GetNNodes());
+  NS_LOG_INFO ("===================================================================");
 
+
+
+  NS_LOG_INFO ("TCP Flavor: " << transport_prot);
+  NS_LOG_INFO ("Simulation Duration: " << SimTime);
+  NS_LOG_INFO ("Configuring error model. Error Probability: " << error_p);
+  NS_LOG_INFO ("===================================================================");
+
+
+  // Configure the error model
+  // Here we use RateErrorModel with packet error rate
+  Ptr<UniformRandomVariable> uv = CreateObject<UniformRandomVariable> ();
+  uv->SetStream (50);
+  RateErrorModel error_model;
+  error_model.SetRandomVariable (uv);
+  error_model.SetUnit (RateErrorModel::ERROR_UNIT_PACKET);
+  error_model.SetRate (error_p);
+
+
+
+  //
+  // Explicitly create the point-to-point link required by the topology (shown above).
   NS_LOG_INFO ("Create channels.");
-
-//
-// Explicitly create the point-to-point link required by the topology (shown above).
-
-// Wifi Channel
+  // Wifi Channel
   YansWifiChannelHelper wifiChannelHelper = YansWifiChannelHelper::Default ();
   Ptr<YansWifiChannel> wifiChannel = wifiChannelHelper.Create ();
 
-// Physical Layer
+  // Physical Layer
   YansWifiPhyHelper wifiPhyHelper = YansWifiPhyHelper::Default ();
   wifiPhyHelper.SetChannel(wifiChannel);
 
-// Mac Layer
+  // Mac Layer
   NqosWifiMacHelper wifiMacHelper = NqosWifiMacHelper::Default ();
   Ssid ssid = Ssid ("ns-3-ssid");
 
-// Install the phy, mac on the station node
+
+  NS_LOG_INFO ("Propataion Delay Model: Constant Speed Propagation");
+  wifiChannelHelper.SetPropagationDelay ("ns3::ConstantSpeedPropagationDelayModel");
+  /*CUT OFF RANGE*/
+  NS_LOG_INFO ("Propagation range: " << range);
+  wifiChannelHelper.AddPropagationLoss ("ns3::RangePropagationLossModel", "MaxRange", DoubleValue(range));
+
+  NS_LOG_INFO ("===================================================================");
+
+
+  // Install the phy, mac on the station node
   wifiMacHelper.SetType ("ns3::StaWifiMac",
                         "Ssid", SsidValue (ssid),
                         "ActiveProbing", BooleanValue (false));
@@ -301,7 +389,7 @@ main (int argc, char *argv[])
   NetDeviceContainer wifiContainer = wifiHelper.Install(wifiPhyHelper, wifiMacHelper, stas);
 
 
-// Install the phy, mac on the ap node
+  // Install the phy, mac on the ap node
   wifiMacHelper.SetType ("ns3::ApWifiMac",
                        "Ssid", SsidValue (ssid));
   wifiHelper.SetStandard(WIFI_PHY_STANDARD_80211a);
@@ -312,40 +400,43 @@ main (int argc, char *argv[])
   NetDeviceContainer apContainer = wifiHelper.Install(wifiPhyHelper, wifiMacHelper, ap);
 
 
-//
-// Install the internet stack on the nodes
-//
+
+  NS_LOG_INFO ("Install Internet Stack.");
+
+  //
+  // Install the internet stack on the nodes
+  //
   InternetStackHelper internet;
   internet.Install (ap);
   internet.Install (stas);
 
 
-//
-// We've got the "hardware" in place.  Now we need to add IP addresses.
-//
+  //
+  // We've got the "hardware" in place.  Now we need to add IP addresses.
+  //
   NS_LOG_INFO ("Assign IP Addresses.");
   Ipv4AddressHelper ipv4;
   ipv4.SetBase ("10.1.1.0", "255.255.255.0");
   Ipv4InterfaceContainer i = ipv4.Assign (apContainer);
   Ipv4InterfaceContainer i1 = ipv4.Assign (wifiContainer);
 
-/*Configure mobility -  DEBUGGING
-//  Ns2MobilityHelper mobility(traceFile);
-//  mobility.Install();
-*/
+  /*Configure mobility -  DEBUGGING
+  //  Ns2MobilityHelper mobility(traceFile);
+  //  mobility.Install();
+  */
 
-// mobility.
-MobilityHelper mobility;
-Ptr<ListPositionAllocator> positionAlloc = CreateObject<ListPositionAllocator> ();
+  // mobility.
+  MobilityHelper mobility;
+  Ptr<ListPositionAllocator> positionAlloc = CreateObject<ListPositionAllocator> ();
 
-positionAlloc->Add (Vector (0.0, 0.0, 0.0));
-positionAlloc->Add (Vector (1.0, 0.0, 15.0));
-mobility.SetPositionAllocator (positionAlloc);
+  positionAlloc->Add (Vector (0.0, 0.0, 0.0));
+  positionAlloc->Add (Vector (1.0, 0.0, 15.0));
+  mobility.SetPositionAllocator (positionAlloc);
 
-mobility.SetMobilityModel ("ns3::ConstantPositionMobilityModel");
+  mobility.SetMobilityModel ("ns3::ConstantPositionMobilityModel");
 
-mobility.Install (ap);
-mobility.Install (stas);
+  mobility.Install (ap);
+  mobility.Install (stas);
 
 
 
@@ -353,9 +444,9 @@ mobility.Install (stas);
 
   NS_LOG_INFO ("Create Applications.");
 
-//
-// Create a BulkSendApplication
-//
+  //
+  // Create a BulkSendApplication
+  //
   uint16_t port = 9;  // well-known echo port number
 
 
@@ -370,8 +461,8 @@ mobility.Install (stas);
   sourceApps.Start (Seconds (0.0));
   sourceApps.Stop (Seconds (SimTime));
 
-//
-// Create a PacketSinkApplication and install it on node 1
+  //
+  // Create a PacketSinkApplication and install it on node 1
 
   PacketSinkHelper sink ("ns3::TcpSocketFactory",
                          InetSocketAddress (Ipv4Address::GetAny (), port));
@@ -466,3 +557,4 @@ if (delta_tr_file_name.compare ("") != 0)
   std::cout << "Total Bytes Received: " << sink1->GetTotalRx () << std::endl;
   std::cout << "Total Throughput: " << (sink1->GetTotalRx ()*8)/(1000000*SimTime) << " Mbps" << std::endl;
 }
+

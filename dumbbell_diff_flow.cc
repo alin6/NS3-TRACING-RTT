@@ -322,7 +322,11 @@ int main (int argc, char *argv[])
 
 
   /*Simulation parameters*/
-  double data_mbytes = 1;
+
+  /*MAX data is split accross all nodes
+    MUST SET SUFFICIENTLY LARGE OTHERWISE
+    SOME NODE WILL END TRANSMISSION EARLY*/
+  double data_mbytes = 200;
   uint32_t mtu_bytes = 400;
   uint16_t num_flows = 1;
   float duration = 30;
@@ -573,6 +577,7 @@ int main (int argc, char *argv[])
           // Set up tracing if enabled
           if (tracing)
             {
+              /*IMPORTABLE: Delay for hook is needed to give latter nodes the time to create and bind socket*/
               double trace_start=0.5;
               if (tr_file_name.compare ("") != 0)
                 {

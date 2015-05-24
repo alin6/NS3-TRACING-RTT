@@ -15,6 +15,7 @@
 #include "ns3/wifi-module.h"
 #include "ns3/athstats-helper.h"
 #include "ns3/netanim-module.h"
+#include "../src/internet/model/tcp-socket-base-1.h"//<! adds global variable to track traced node's ID
 
 
 using namespace ns3;
@@ -557,4 +558,3 @@ if (delta_tr_file_name.compare ("") != 0)
   std::cout << "Total Bytes Received: " << sink1->GetTotalRx () << std::endl;
   std::cout << "Total Throughput: " << (sink1->GetTotalRx ()*8)/(1000000*SimTime) << " Mbps" << std::endl;
 }
-

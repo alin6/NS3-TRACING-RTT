@@ -51,6 +51,7 @@
 #include "ns3/event-id.h"
 #include "ns3/flow-monitor-helper.h"
 #include "ns3/ipv4-global-routing-helper.h"
+#include "../src/internet/model/tcp-socket-base-1.h"  //<! adds global variable to track traced node's ID
 
 using namespace ns3;
 

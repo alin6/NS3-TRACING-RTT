@@ -50,6 +50,7 @@
 #include "tcp-option-winscale.h"
 #include "tcp-option-ts.h"
 #include "rtt-estimator.h"
+#include "tcp-socket-base-1.h" //<! adds global variable to track traced node's ID
 
 #include <math.h>
 #include <algorithm>

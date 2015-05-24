@@ -151,7 +151,7 @@ RttVarTracer (Time oldval, Time newval)
       *rttvarStream->GetStream () << "0.0 " << oldval.GetSeconds () << std::endl;
       firstRttVar = false;
     }
-  *rttvarStream->GetStream () << m_nodeID << " " << Simulator::Now ().GetSeconds () << " " << newval.GetSeconds () << std::endl;
+  *rttvarStream->GetStream () <<  Simulator::Now ().GetSeconds () << " " << newval.GetSeconds () << std::endl;
 }
 
 
@@ -237,7 +237,7 @@ TraceDelta (std::string delta_tr_file_name)
 {
   AsciiTraceHelper ascii;
   deltaStream = ascii.CreateFileStream (delta_tr_file_name.c_str ());
-  Config::ConnectWithoutContext ("/NodeList/*/$ns3::TcpL4Protocol/SocketList/*/Delta", MakeCallback (&DeltaTracer));
+  Config::ConnectWithoutContext ("/NodeList/3/$ns3::TcpL4Protocol/SocketList/*/Delta", MakeCallback (&DeltaTracer));
 }
 
 
@@ -573,7 +573,7 @@ int main (int argc, char *argv[])
           // Set up tracing if enabled
           if (tracing)
             {
-              double trace_start=0.2;
+              double trace_start=0.5;
               if (tr_file_name.compare ("") != 0)
                 {
                   std::ofstream ascii;
@@ -617,7 +617,7 @@ int main (int argc, char *argv[])
                 /*****Delta**************************************************************/
               if (delta_tr_file_name.compare ("") != 0)
                 {
-                  Simulator::Schedule (Seconds (0.05), &TraceDelta, delta_tr_file_name);
+                  Simulator::Schedule (Seconds (trace_start), &TraceDelta, delta_tr_file_name);
                 }
 
                 /*****estimate RTT**************************************************************/

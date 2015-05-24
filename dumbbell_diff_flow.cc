@@ -51,7 +51,8 @@
 #include "ns3/event-id.h"
 #include "ns3/flow-monitor-helper.h"
 #include "ns3/ipv4-global-routing-helper.h"
-#include "../src/internet/model/tcp-socket-base-1.h"  //<! adds global variable to track traced node's ID
+#include "../src/internet/model/tcp-socket-base-1.h"
+
 
 using namespace ns3;
 
@@ -68,6 +69,7 @@ bool firstRttVar = true;
 bool firstRealRtt = true;
 bool firstDelta = true;
 
+bool firstRtt_2 = true;
 
 Ptr<OutputStreamWrapper> cWndStream;
 Ptr<OutputStreamWrapper> ssThreshStream;
@@ -77,6 +79,8 @@ Ptr<OutputStreamWrapper> rtoStream;
 Ptr<OutputStreamWrapper> rttvarStream;
 Ptr<OutputStreamWrapper> rrttStream;
 Ptr<OutputStreamWrapper> deltaStream;
+
+Ptr<OutputStreamWrapper> rttStream_2;
 
 uint32_t cWndValue;
 uint32_t ssThreshValue;
@@ -126,7 +130,7 @@ RttTracer (Time oldval, Time newval)
       *rttStream->GetStream () << "0.0 " << oldval.GetSeconds () << std::endl;
       firstRtt = false;
     }
-  *rttStream->GetStream () << Simulator::Now ().GetSeconds () << " " << newval.GetSeconds () << std::endl;
+  *rttStream->GetStream () << m_nodeID << " " << Simulator::Now ().GetSeconds () << " " << newval.GetSeconds () << std::endl;
 }
 
 static void
@@ -147,7 +151,7 @@ RttVarTracer (Time oldval, Time newval)
       *rttvarStream->GetStream () << "0.0 " << oldval.GetSeconds () << std::endl;
       firstRttVar = false;
     }
-  *rttvarStream->GetStream () << Simulator::Now ().GetSeconds () << " " << newval.GetSeconds () << std::endl;
+  *rttvarStream->GetStream () << m_nodeID << " " << Simulator::Now ().GetSeconds () << " " << newval.GetSeconds () << std::endl;
 }
 
 
@@ -204,7 +208,7 @@ TraceRtt (std::string rtt_tr_file_name)
 {
   AsciiTraceHelper ascii;
   rttStream = ascii.CreateFileStream (rtt_tr_file_name.c_str ());
-  Config::ConnectWithoutContext ("/NodeList/2/$ns3::TcpL4Protocol/SocketList/0/RTT", MakeCallback (&RttTracer));
+  Config::ConnectWithoutContext ("/NodeList/2/$ns3::TcpL4Protocol/SocketList/*/RTT", MakeCallback (&RttTracer));
 }
 
 static void
@@ -233,8 +237,35 @@ TraceDelta (std::string delta_tr_file_name)
 {
   AsciiTraceHelper ascii;
   deltaStream = ascii.CreateFileStream (delta_tr_file_name.c_str ());
-  Config::ConnectWithoutContext ("/NodeList/2/$ns3::TcpL4Protocol/SocketList/0/Delta", MakeCallback (&DeltaTracer));
+  Config::ConnectWithoutContext ("/NodeList/*/$ns3::TcpL4Protocol/SocketList/*/Delta", MakeCallback (&DeltaTracer));
 }
+
+
+
+
+/**********EXPERIMENTAL SECOND RTT TRACE***********************************/
+
+static void
+RttTracer_2 (Time oldval, Time newval)
+{
+  if (firstRtt)
+    {
+      *rttStream_2->GetStream () << "0.0 " << oldval.GetSeconds () << std::endl;
+      firstRtt_2 = false;
+    }
+  *rttStream_2->GetStream () << Simulator::Now ().GetSeconds () << " " << newval.GetSeconds () << std::endl;
+}
+
+
+static void
+TraceRtt_2 (std::string rtt_tr_file_name_2)
+{
+  AsciiTraceHelper ascii;
+  rttStream_2 = ascii.CreateFileStream (rtt_tr_file_name_2.c_str ());
+  Config::ConnectWithoutContext ("/NodeList/3/$ns3::TcpL4Protocol/SocketList/*/RTT", MakeCallback (&RttTracer_2));
+}
+
+/**********************************************/
 
 
 
@@ -283,9 +314,12 @@ int main (int argc, char *argv[])
   std::string ssthresh_tr_file_name = "";
   std::string rtt_tr_file_name = "";
   std::string rto_tr_file_name = "";
- std::string rttvar_tr_file_name = "";
- std::string rrtt_tr_file_name = "";
- std::string delta_tr_file_name = "";
+  std::string rttvar_tr_file_name = "";
+  std::string rrtt_tr_file_name = "";
+  std::string delta_tr_file_name = "";
+
+  std::string rtt_tr_file_name_2 = "rtt_2.trace";
+
 
   /*Simulation parameters*/
   double data_mbytes = 1;
@@ -310,7 +344,7 @@ int main (int argc, char *argv[])
   cmd.AddValue ("access_bandwidth", "Access link bandwidth", access_bandwidth);
   cmd.AddValue ("delay", "Access link delay", access_delay);
   cmd.AddValue ("tracing", "Flag to enable/disable tracing", tracing);
-  cmd.AddValue ("tr_name", "Name of output trace file [true]", tr_file_name);
+  cmd.AddValue ("tr_name", "Name of output trace file", tr_file_name);
   cmd.AddValue ("cwnd_tr_name", "Name of output trace file", cwnd_tr_file_name);
   cmd.AddValue ("ssthresh_tr_name", "Name of output trace file", ssthresh_tr_file_name);
   cmd.AddValue ("rtt_tr_name", "Name of output trace file for ESIMATED RTT", rtt_tr_file_name);
@@ -318,10 +352,10 @@ int main (int argc, char *argv[])
   cmd.AddValue ("rttvar_tr_name", "Name of output trace file", rttvar_tr_file_name);
   cmd.AddValue ("rrtt_tr_name", "Name of output trace file for REAL RTT", rrtt_tr_file_name);
   cmd.AddValue ("delta_tr_name", "Name of output trace file", delta_tr_file_name);
-  cmd.AddValue ("data", "Number of Megabytes of data to transmit[0]", data_mbytes);
-  cmd.AddValue ("mtu", "Size of IP packets to send in bytes[400]", mtu_bytes);
-  cmd.AddValue ("num_flows", "Number of flows[1]", num_flows);
-  cmd.AddValue ("duration", "Time to allow flows to run in seconds[30]", duration);
+  cmd.AddValue ("data", "Number of Megabytes of data to transmit", data_mbytes);
+  cmd.AddValue ("mtu", "Size of IP packets to send in bytes", mtu_bytes);
+  cmd.AddValue ("num_flows", "Number of flows", num_flows);
+  cmd.AddValue ("duration", "Time to allow flows to run in seconds", duration);
   cmd.AddValue ("run", "Run index (for setting repeatable seeds)", run);
   cmd.AddValue ("flow_monitor", "Enable flow monitor", flow_monitor);
   cmd.Parse (argc, argv);
@@ -539,6 +573,7 @@ int main (int argc, char *argv[])
           // Set up tracing if enabled
           if (tracing)
             {
+              double trace_start=0.2;
               if (tr_file_name.compare ("") != 0)
                 {
                   std::ofstream ascii;
@@ -550,40 +585,46 @@ int main (int argc, char *argv[])
 
               if (cwnd_tr_file_name.compare ("") != 0)
                 {
-                  Simulator::Schedule (Seconds (0.00001), &TraceCwnd, cwnd_tr_file_name);
+                  Simulator::Schedule (Seconds (trace_start), &TraceCwnd, cwnd_tr_file_name);
                 }
 
               if (ssthresh_tr_file_name.compare ("") != 0)
                 {
-                  Simulator::Schedule (Seconds (0.00001), &TraceSsThresh, ssthresh_tr_file_name);
+                  Simulator::Schedule (Seconds (trace_start), &TraceSsThresh, ssthresh_tr_file_name);
                 }
               /*****estimate RTT**************************************************************/
               if (rtt_tr_file_name.compare ("") != 0)
                 {
-                  Simulator::Schedule (Seconds (0.00001), &TraceRtt, rtt_tr_file_name);
+                  Simulator::Schedule (Seconds (trace_start), &TraceRtt, rtt_tr_file_name);
                 }
 
               if (rto_tr_file_name.compare ("") != 0)
                 {
-                  Simulator::Schedule (Seconds (0.00001), &TraceRto, rto_tr_file_name);
+                  Simulator::Schedule (Seconds (trace_start), &TraceRto, rto_tr_file_name);
                 }
 
   		        /*****RTT VARIANCE**************************************************************/
               if (rttvar_tr_file_name.compare ("") != 0)
                 {
-                  Simulator::Schedule (Seconds (0.00001), &TraceRttVar, rttvar_tr_file_name);
+                  Simulator::Schedule (Seconds (trace_start), &TraceRttVar, rttvar_tr_file_name);
                 }
               /*****REAL RTT**************************************************************/
               if (rrtt_tr_file_name.compare ("") != 0)
                 {
-                  Simulator::Schedule (Seconds (0.00001), &TraceRealRtt, rrtt_tr_file_name);
+                  Simulator::Schedule (Seconds (trace_start), &TraceRealRtt, rrtt_tr_file_name);
                 }
 
                 /*****Delta**************************************************************/
               if (delta_tr_file_name.compare ("") != 0)
                 {
-                  Simulator::Schedule (Seconds (0.00001), &TraceDelta, delta_tr_file_name);
+                  Simulator::Schedule (Seconds (0.05), &TraceDelta, delta_tr_file_name);
                 }
+
+                /*****estimate RTT**************************************************************/
+                if (rtt_tr_file_name_2.compare ("") != 0)
+                  {
+                    Simulator::Schedule (Seconds (trace_start), &TraceRtt_2, rtt_tr_file_name_2);
+                  }
 
             }
 

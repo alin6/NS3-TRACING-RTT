@@ -55,6 +55,8 @@
 #include <math.h>
 #include <algorithm>
 
+uint32_t  m_nodeID; //<! global variable to track traced node's ID
+
 namespace ns3 {
 
 NS_LOG_COMPONENT_DEFINE ("TcpSocketBase");
@@ -2293,6 +2295,7 @@ TcpSocketBase::EstimateRtt (const TcpHeader& tcpHeader)
       m_RttVar = m_rtt->GetVariation ();
       m_rrtt = m_rtt->MeasuredRttSample();
       m_delta = m_rtt->CurrentDelta();
+      m_nodeID = m_node->GetId ();
       /*********************************************************************/
     }
 }

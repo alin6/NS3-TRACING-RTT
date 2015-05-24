@@ -262,11 +262,11 @@ main (int argc, char *argv[])
   CommandLine cmd;
   cmd.AddValue ("transport_prot", "Transport protocol to use: TcpTahoe, TcpReno, TcpNewReno, TcpWestwood, TcpWestwoodPlus ", transport_prot);
   cmd.AddValue ("MBytes", "maximum number of megabytes during the transfer[3000]", maxBytes);
-  cmd.AddValue ("error_p", "Packet error rate[0.0]", error_p);
-  cmd.AddValue ("seed", "set seed repeatable runs[1]", seed);
+  cmd.AddValue ("error_p", "Packet error rate", error_p);
+  cmd.AddValue ("seed", "set seed repeatable runs", seed);
   cmd.AddValue ("run", "Run index (for setting repeatable seeds)", run);
-  cmd.AddValue ("duration", "Time to allow flows to run in seconds[30]", SimTime);
-  cmd.AddValue ("tr_name", "Name of output trace file [true]", tr_file_name);
+  cmd.AddValue ("duration", "Time to allow flows to run in seconds", SimTime);
+  cmd.AddValue ("tr_name", "Name of output trace file", tr_file_name);
   cmd.AddValue ("rwnd_tr_name", "Name of output trace file", rwin_tr_file_name);
   cmd.AddValue ("cwnd_tr_name", "Name of output trace file", cwnd_tr_file_name);
   cmd.AddValue ("ssthresh_tr_name", "Name of output trace file", ssthresh_tr_file_name);
@@ -275,8 +275,7 @@ main (int argc, char *argv[])
   cmd.AddValue ("rttvar_tr_name", "Name of output trace file", rttvar_tr_file_name);
   cmd.AddValue ("rrtt_tr_name", "Name of output trace file for REAL RTT", rrtt_tr_file_name);
   cmd.AddValue ("delta_tr_name", "Name of output trace file", delta_tr_file_name);
-  cmd.AddValue ("tr_name", "Name of output trace file [true]", tr_file_name);
-  cmd.AddValue ("range", "Cutoff range of transmission [250]", range);
+  cmd.AddValue ("range", "Cutoff range of transmission ", range);
   cmd.Parse (argc, argv);
 
 

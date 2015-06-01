@@ -139,10 +139,10 @@ RealRttTracer (Time oldval, Time newval)
 {
   if (firstRealRtt)
     {
-      *rrttStream->GetStream () << "0.0 " << oldval.GetSeconds () << std::endl;
+      *rrttStream->GetStream ()  << m_nodeID << " " << "0.0 " << oldval.GetSeconds () << std::endl;
       firstRealRtt = false;
     }
-  *rrttStream->GetStream () << Simulator::Now ().GetSeconds () << " " << newval.GetSeconds () << std::endl;
+  *rrttStream->GetStream ()  << m_nodeID << " " << Simulator::Now ().GetSeconds () << " " << newval.GetSeconds () << std::endl;
 }
 
 
@@ -252,13 +252,12 @@ main (int argc, char *argv[])
   std::string tr_file_name = "";
   std::string cwnd_tr_file_name = "";
   std::string ssthresh_tr_file_name = "";
-  std::string rtt_tr_file_name = "estRtt.trace";
+  std::string rtt_tr_file_name = "wireless.rtt";
   std::string rto_tr_file_name = "";
   std::string rwin_tr_file_name = "";
   std::string rttvar_tr_file_name = "";
   std::string rrtt_tr_file_name = "wireless.rrtt";
-  std::string delta_tr_file_name = "delta.trace";
-
+  std::string delta_tr_file_name = "wireless.delta";
 
 
 
@@ -466,30 +465,37 @@ main (int argc, char *argv[])
   //
   uint16_t port = 9;  // well-known echo port number
 
-
+  /*NAME OF PROTOCOL, DESTINATION ADDRESS*/
   BulkSendHelper source ("ns3::TcpSocketFactory",
-                         InetSocketAddress (i1.GetAddress (0), port));
+                         InetSocketAddress (i.GetAddress (0), port));
   //source.SetAttribute("SendSize", UintegerValue (1500));
   // Set the amount of data to send in bytes.  Zero is unlimited.
   source.SetAttribute ("MaxBytes", UintegerValue (int(maxBytes* 1000000)));
 
 
+  // MOBILE NODE(S) AS SOURCE(S)
 
-  ApplicationContainer sourceApps = source.Install (ap.Get (0));
-  sourceApps.Start (Seconds (0.0));
-  sourceApps.Stop (Seconds (SimTime));
+  ApplicationContainer sourceApps;
+  for (int i = 0; i < num_flows; i++)
+    {
+      sourceApps = source.Install (stas.Get (i));
+      sourceApps.Start (Seconds (0.0));
+      sourceApps.Stop (Seconds (SimTime));
+    }
+
 
   //
   // Create a PacketSinkApplication and install it on node 1
 
 
 
-  // SOURCE NEEDS TO BE THE OTHER NODES TO DIFFERENTIATE FLOWS....
-  // MIGHT NEED TO INSTALL FTP APP
-
+  // STATIONARY AP AS SINK
   PacketSinkHelper sink ("ns3::TcpSocketFactory",
                          InetSocketAddress (Ipv4Address::GetAny (), port));
-  ApplicationContainer sinkApps = sink.Install (stas.Get (0));
+
+
+
+  ApplicationContainer sinkApps = sink.Install (ap.Get (0));
   sinkApps.Start (Seconds (0.0));
   sinkApps.Stop (Seconds (SimTime));
 
@@ -501,7 +507,7 @@ main (int argc, char *argv[])
     {
       //AsciiTraceHelper ascii;
       //wifiHelper.EnableAsciiAll (ascii.CreateFileStream ("tcp-bulk-send.tr"));
-      wifiPhyHelper.EnablePcapAll ("wire_rtt", true);
+      wifiPhyHelper.EnablePcapAll ("wireless_rtt", true);
     }
 //
 // Now, do the actual simulation.

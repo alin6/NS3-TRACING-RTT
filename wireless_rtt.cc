@@ -104,10 +104,10 @@ RttTracer (Time oldval, Time newval)
 {
   if (firstRtt)
     {
-      *rttStream->GetStream () << "0.0 " << oldval.GetSeconds () << std::endl;
+      *rttStream->GetStream () << m_nodeID << " "  <<  "0.0 " << oldval.GetSeconds () << std::endl;
       firstRtt = false;
     }
-  *rttStream->GetStream () << Simulator::Now ().GetSeconds () << " " << newval.GetSeconds () << std::endl;
+  *rttStream->GetStream () << m_nodeID << " " <<  Simulator::Now ().GetSeconds () << " " << newval.GetSeconds () << std::endl;
 }
 
 static void
@@ -151,10 +151,10 @@ DeltaTracer (Time oldval, Time newval)
 {
   if (firstDelta)
     {
-      *deltaStream->GetStream () << "0.0 " << oldval.GetSeconds () << std::endl;
+      *deltaStream->GetStream () << m_nodeID << " " <<  "0.0 " << oldval.GetSeconds () << std::endl;
       firstDelta = false;
     }
-  *deltaStream->GetStream () << Simulator::Now ().GetSeconds () << " " << newval.GetSeconds () << std::endl;
+  *deltaStream->GetStream () << m_nodeID << " " << Simulator::Now ().GetSeconds () << " " << newval.GetSeconds () << std::endl;
 }
 
 
@@ -228,7 +228,7 @@ PhyTxTrace (std::string context, Ptr<const Packet> packet, WifiMode mode, WifiPr
 int
 main (int argc, char *argv[])
 {
-  uint32_t maxBytes = 3000; //megaBytes
+  uint32_t maxBytes = 300; //megaBytes
   double SimTime = 10.0;
   std::string transport_prot = "TcpWestwood";
   //NS_LOG_INFO ("error probabiltiy 0.0");
@@ -238,6 +238,9 @@ main (int argc, char *argv[])
   uint32_t seed = 1;
   double range = 250;
 
+
+
+  uint16_t num_flows = 1;
 
   /*LOG COMPONENTS*/
   LogComponentEnable("WirelessRtt", LOG_LEVEL_INFO);
@@ -249,12 +252,12 @@ main (int argc, char *argv[])
   std::string tr_file_name = "";
   std::string cwnd_tr_file_name = "";
   std::string ssthresh_tr_file_name = "";
-  std::string rtt_tr_file_name = "wireless.rtt";
+  std::string rtt_tr_file_name = "estRtt.trace";
   std::string rto_tr_file_name = "";
   std::string rwin_tr_file_name = "";
   std::string rttvar_tr_file_name = "";
   std::string rrtt_tr_file_name = "wireless.rrtt";
-  std::string delta_tr_file_name = "wireless.delta";
+  std::string delta_tr_file_name = "delta.trace";
 
 
 
@@ -276,6 +279,7 @@ main (int argc, char *argv[])
   cmd.AddValue ("rrtt_tr_name", "Name of output trace file for REAL RTT", rrtt_tr_file_name);
   cmd.AddValue ("delta_tr_name", "Name of output trace file", delta_tr_file_name);
   cmd.AddValue ("range", "Cutoff range of transmission ", range);
+  cmd.AddValue ("num_flows", "Number of flows", num_flows);
   cmd.Parse (argc, argv);
 
 
@@ -328,7 +332,7 @@ main (int argc, char *argv[])
   ap.Create(1);
   NS_LOG_INFO ("Number of Nodes After AP: " << NodeList::GetNNodes());
 
-  stas.Create(1);
+  stas.Create(num_flows);
   NS_LOG_INFO ("Total Number of Nodes After Stations: " << NodeList::GetNNodes());
   NS_LOG_INFO ("===================================================================");
 
@@ -407,8 +411,9 @@ main (int argc, char *argv[])
   // Install the internet stack on the nodes
   //
   InternetStackHelper internet;
-  internet.Install (ap);
   internet.Install (stas);
+  internet.Install (ap);
+
 
 
   //
@@ -428,14 +433,26 @@ main (int argc, char *argv[])
   // mobility.
   MobilityHelper mobility;
   Ptr<ListPositionAllocator> positionAlloc = CreateObject<ListPositionAllocator> ();
-
   positionAlloc->Add (Vector (0.0, 0.0, 0.0));
-  positionAlloc->Add (Vector (1.0, 0.0, 15.0));
+  //positionAlloc->Add (Vector (1.0, 0.0, 80.0));
   mobility.SetPositionAllocator (positionAlloc);
 
   mobility.SetMobilityModel ("ns3::ConstantPositionMobilityModel");
 
   mobility.Install (ap);
+
+  mobility.SetPositionAllocator ("ns3::GridPositionAllocator",
+                                  "MinX", DoubleValue (10.0),
+                                  "MinY", DoubleValue (10.0),
+                                  "DeltaX", DoubleValue (5.0),
+                                  "DeltaY", DoubleValue (2.0),
+                                  "GridWidth", UintegerValue (5),
+                                  "LayoutType", StringValue ("RowFirst"));
+
+  mobility.SetMobilityModel ("ns3::RandomWalk2dMobilityModel",
+                              "Bounds", RectangleValue (Rectangle (-50, 50, -25, 50)));
+
+
   mobility.Install (stas);
 
 
@@ -454,7 +471,8 @@ main (int argc, char *argv[])
                          InetSocketAddress (i1.GetAddress (0), port));
   //source.SetAttribute("SendSize", UintegerValue (1500));
   // Set the amount of data to send in bytes.  Zero is unlimited.
-  source.SetAttribute ("MaxBytes", UintegerValue (int(maxBytes* 100000)));
+  source.SetAttribute ("MaxBytes", UintegerValue (int(maxBytes* 1000000)));
+
 
 
   ApplicationContainer sourceApps = source.Install (ap.Get (0));
@@ -463,6 +481,11 @@ main (int argc, char *argv[])
 
   //
   // Create a PacketSinkApplication and install it on node 1
+
+
+
+  // SOURCE NEEDS TO BE THE OTHER NODES TO DIFFERENTIATE FLOWS....
+  // MIGHT NEED TO INSTALL FTP APP
 
   PacketSinkHelper sink ("ns3::TcpSocketFactory",
                          InetSocketAddress (Ipv4Address::GetAny (), port));
@@ -478,18 +501,29 @@ main (int argc, char *argv[])
     {
       //AsciiTraceHelper ascii;
       //wifiHelper.EnableAsciiAll (ascii.CreateFileStream ("tcp-bulk-send.tr"));
-      wifiPhyHelper.EnablePcapAll ("tcp-bulk-send", true);
+      wifiPhyHelper.EnablePcapAll ("wire_rtt", true);
     }
 //
 // Now, do the actual simulation.
 //
   // Setting up Animation Interface nicely
-//   AnimationInterface::SetNodeDescription (ap, "AP"); // Optional
-//   AnimationInterface::SetNodeDescription (stas, "STA"); //b Optional
-//   AnimationInterface::SetNodeColor (ap, 0, 255, 0); // Optional
-//   AnimationInterface::SetNodeColor (stas, 255, 0, 0); // Optional
 
-//  AnimationInterface anim ("BulkSend.xml");
+    AnimationInterface anim ("wireless_rtt.xml");
+    anim.SetConstantPosition (ap.Get (0), 0.0, 0.0);
+    anim.SetConstantPosition (stas.Get (0), 0.0, 25.0);
+    anim.UpdateNodeDescription (ap.Get (0), "wireless access point");
+
+    for (int i = 0; i < num_flows; i++)
+      {
+        char str[18];
+        sprintf(str,"wireless station %d", (i+1));
+        anim.UpdateNodeDescription (stas.Get (i), str);
+      }
+   //AnimationInterface::SetNodeDescription (ap, "AP"); // Optional
+   //AnimationInterface::SetNodeDescription (stas, "STA"); //b Optional
+   //AnimationInterface::SetNodeColor (ap, 0, 255, 0); // Optional
+   //AnimationInterface::SetNodeColor (stas, 255, 0, 0); // Optional
+
 
   Ptr<PacketSink> sink1 = DynamicCast<PacketSink> (sinkApps.Get (0));
 
@@ -499,7 +533,7 @@ main (int argc, char *argv[])
 //  std::cout << "Time: " << t.GetSeconds() << std::endl;
 //  Simulator::Schedule(Seconds(0.1), &get_throughput, sink1);
 
-
+double trace_start=0.5;
 if (tr_file_name.compare ("") != 0)
   {
     std::ofstream ascii;
@@ -511,39 +545,39 @@ if (tr_file_name.compare ("") != 0)
 
 if (cwnd_tr_file_name.compare ("") != 0)
   {
-    Simulator::Schedule (Seconds (0.00001), &TraceCwnd, cwnd_tr_file_name);
+    Simulator::Schedule (Seconds (trace_start), &TraceCwnd, cwnd_tr_file_name);
   }
 
 if (ssthresh_tr_file_name.compare ("") != 0)
   {
-    Simulator::Schedule (Seconds (0.00001), &TraceSsThresh, ssthresh_tr_file_name);
+    Simulator::Schedule (Seconds (trace_start), &TraceSsThresh, ssthresh_tr_file_name);
   }
 /*****estimate RTT**************************************************************/
 if (rtt_tr_file_name.compare ("") != 0)
   {
-    Simulator::Schedule (Seconds (0.00001), &TraceRtt, rtt_tr_file_name);
+    Simulator::Schedule (Seconds (trace_start), &TraceRtt, rtt_tr_file_name);
   }
 
 if (rto_tr_file_name.compare ("") != 0)
   {
-    Simulator::Schedule (Seconds (0.00001), &TraceRto, rto_tr_file_name);
+    Simulator::Schedule (Seconds (trace_start), &TraceRto, rto_tr_file_name);
   }
 
 /*****RTT VARIANCE**************************************************************/
 if (rttvar_tr_file_name.compare ("") != 0)
   {
-    Simulator::Schedule (Seconds (0.00001), &TraceRttVar, rttvar_tr_file_name);
+    Simulator::Schedule (Seconds (trace_start), &TraceRttVar, rttvar_tr_file_name);
   }
 /*****REAL RTT**************************************************************/
 if (rrtt_tr_file_name.compare ("") != 0)
   {
-    Simulator::Schedule (Seconds (0.00001), &TraceRealRtt, rrtt_tr_file_name);
+    Simulator::Schedule (Seconds (trace_start), &TraceRealRtt, rrtt_tr_file_name);
   }
 
   /*****Delta**************************************************************/
 if (delta_tr_file_name.compare ("") != 0)
   {
-    Simulator::Schedule (Seconds (0.00001), &TraceDelta, delta_tr_file_name);
+    Simulator::Schedule (Seconds (trace_start), &TraceDelta, delta_tr_file_name);
   }
 
 

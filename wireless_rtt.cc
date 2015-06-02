@@ -31,6 +31,7 @@ bool firstRto = true;
 bool firstRttVar = true;
 bool firstRealRtt = true;
 bool firstDelta = true;
+bool anim_meta = true;
 
 
 /*****************************************************************************/
@@ -237,9 +238,13 @@ main (int argc, char *argv[])
   uint32_t run = 0;
   uint32_t seed = 1;
   double range = 250;
-
-
-
+  /*defines the interval in with additional nodes can start transmitting*/
+  /*DEFUALT 2 Seconds*/
+  double delay_start_interval = 2.0;
+  /*defines number of nodes to to be added to transmitting set every interval*/
+  /*DEFUALT 3nodes*/
+  uint16_t num_add_trans_node = 3;
+  /*the number for flows*/
   uint16_t num_flows = 1;
 
   /*LOG COMPONENTS*/
@@ -279,9 +284,11 @@ main (int argc, char *argv[])
   cmd.AddValue ("delta_tr_name", "Name of output trace file", delta_tr_file_name);
   cmd.AddValue ("range", "Cutoff range of transmission ", range);
   cmd.AddValue ("num_flows", "Number of flows", num_flows);
+  cmd.AddValue ("delay_start_interval", "Delay in seconds Interval between starting transmissions between groups of nodes", delay_start_interval);
+  cmd.AddValue ("num_add_trans_node", "Number of flows to be started at every interval", num_add_trans_node);
+  cmd.AddValue ("anim_meta", "Enabe/Disable netanim packet metadata", anim_meta);
+
   cmd.Parse (argc, argv);
-
-
 
 
   SeedManager::SetSeed (seed);
@@ -330,9 +337,14 @@ main (int argc, char *argv[])
   NodeContainer stas, ap;
   ap.Create(1);
   NS_LOG_INFO ("Number of Nodes After AP: " << NodeList::GetNNodes());
-
   stas.Create(num_flows);
-  NS_LOG_INFO ("Total Number of Nodes After Stations: " << NodeList::GetNNodes());
+  NS_LOG_INFO ("Total Number of Nodes After Adding Wifi Stations: " << NodeList::GetNNodes());
+  NS_LOG_INFO ("Total Number Flows: " << num_flows);
+  if (num_flows > num_add_trans_node) {
+    NS_LOG_INFO ("===================================================================");
+    NS_LOG_INFO ("first " << num_add_trans_node << " flows will be started at time 0.0");
+    NS_LOG_INFO ("upto to  " << num_add_trans_node << "additional flows will start at " << delay_start_interval << " second(s) intervals");
+  }
   NS_LOG_INFO ("===================================================================");
 
 
@@ -447,8 +459,12 @@ main (int argc, char *argv[])
                                   "DeltaY", DoubleValue (2.0),
                                   "GridWidth", UintegerValue (5),
                                   "LayoutType", StringValue ("RowFirst"));
-
+  /*SET MOBILITY MODEL*/
   mobility.SetMobilityModel ("ns3::RandomWalk2dMobilityModel",
+                              /*DECLARE DISTNACE OR TIME MODE*/
+                              "Mode", StringValue ("Time"),
+                              /*DEFINE TIME DURATION BEFORE CHANGE IN SPEED AND DIRECTION*/
+                              "Time", StringValue ("2s"),
                               "Bounds", RectangleValue (Rectangle (-50, 50, -25, 50)));
 
 
@@ -476,10 +492,13 @@ main (int argc, char *argv[])
   // MOBILE NODE(S) AS SOURCE(S)
 
   ApplicationContainer sourceApps;
+
+  int j = 0;
   for (int i = 0; i < num_flows; i++)
     {
+      if (i % num_add_trans_node == 2)  j++ ;
       sourceApps = source.Install (stas.Get (i));
-      sourceApps.Start (Seconds (0.0));
+      sourceApps.Start (Seconds (0.0 + (j*delay_start_interval)));
       sourceApps.Stop (Seconds (SimTime));
     }
 
@@ -506,7 +525,7 @@ main (int argc, char *argv[])
   if (true)
     {
       //AsciiTraceHelper ascii;
-      //wifiHelper.EnableAsciiAll (ascii.CreateFileStream ("tcp-bulk-send.tr"));
+      //wifiHelper.EnableAsciiAll (ascii.CreateFileStream ("wireless_rtt.tr"));
       wifiPhyHelper.EnablePcapAll ("wireless_rtt", true);
     }
 //
@@ -515,30 +534,30 @@ main (int argc, char *argv[])
   // Setting up Animation Interface nicely
 
     AnimationInterface anim ("wireless_rtt.xml");
-    anim.SetConstantPosition (ap.Get (0), 0.0, 0.0);
-    anim.SetConstantPosition (stas.Get (0), 0.0, 25.0);
+    /*NODE ID, X-axis, Y-axis, (Z-axis)*/
+    anim.SetConstantPosition (ap.Get (0), 25.0, 25.0);
+    //anim.SetConstantPosition (stas.Get (0), 0.0, 25.0);
+    /*Assign Label for access point*/
     anim.UpdateNodeDescription (ap.Get (0), "wireless access point");
+    /*base station color*/
+    anim.UpdateNodeColor(ap.Get (0), 0, 0,255);
 
+    /*Assign Label for mobile wireless stations*/
     for (int i = 0; i < num_flows; i++)
       {
         char str[18];
         sprintf(str,"wireless station %d", (i+1));
         anim.UpdateNodeDescription (stas.Get (i), str);
+        /*enable packet metadata*/
+        anim.EnablePacketMetadata(anim_meta);
       }
-   //AnimationInterface::SetNodeDescription (ap, "AP"); // Optional
-   //AnimationInterface::SetNodeDescription (stas, "STA"); //b Optional
-   //AnimationInterface::SetNodeColor (ap, 0, 255, 0); // Optional
-   //AnimationInterface::SetNodeColor (stas, 255, 0, 0); // Optional
 
-
+  /*Residual code, keeps trace of total databytes recieved at sink*/
   Ptr<PacketSink> sink1 = DynamicCast<PacketSink> (sinkApps.Get (0));
 
-  //Config::Connect ("/NodeList/0/DeviceList/0/Phy/State/Tx", MakeCallback (&PhyTxTrace));
-
-//  Time t = Simulator::Now();
-//  std::cout << "Time: " << t.GetSeconds() << std::endl;
-//  Simulator::Schedule(Seconds(0.1), &get_throughput, sink1);
-
+/********************************************************************************/
+/*HOOKS FOR STARTING TRACES *****************************************************/
+/********************************************************************************/
 double trace_start=0.5;
 if (tr_file_name.compare ("") != 0)
   {
@@ -548,7 +567,6 @@ if (tr_file_name.compare ("") != 0)
     ascii_wrap = new OutputStreamWrapper (tr_file_name.c_str (), std::ios::out);
     internet.EnableAsciiIpv4All (ascii_wrap);
   }
-
 if (cwnd_tr_file_name.compare ("") != 0)
   {
     Simulator::Schedule (Seconds (trace_start), &TraceCwnd, cwnd_tr_file_name);

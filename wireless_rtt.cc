@@ -140,10 +140,10 @@ RealRttTracer (Time oldval, Time newval)
 {
   if (firstRealRtt)
     {
-      *rrttStream->GetStream ()  << m_nodeID << " " << "0.0 " << oldval.GetSeconds () << std::endl;
+      *rrttStream->GetStream () << "0.0 " << oldval.GetSeconds () << std::endl;
       firstRealRtt = false;
     }
-  *rrttStream->GetStream ()  << m_nodeID << " " << Simulator::Now ().GetSeconds () << " " << newval.GetSeconds () << std::endl;
+  *rrttStream->GetStream ()  << Simulator::Now ().GetSeconds () << " " << newval.GetSeconds () << std::endl;
 }
 
 
@@ -152,10 +152,10 @@ DeltaTracer (Time oldval, Time newval)
 {
   if (firstDelta)
     {
-      *deltaStream->GetStream () << m_nodeID << " " <<  "0.0 " << oldval.GetSeconds () << std::endl;
+      *deltaStream->GetStream () <<  "0.0 " << oldval.GetSeconds () << std::endl;
       firstDelta = false;
     }
-  *deltaStream->GetStream () << m_nodeID << " " << Simulator::Now ().GetSeconds () << " " << newval.GetSeconds () << std::endl;
+  *deltaStream->GetStream () << Simulator::Now ().GetSeconds () << " " << newval.GetSeconds () << std::endl;
 }
 
 

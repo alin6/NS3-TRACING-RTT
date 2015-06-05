@@ -1,6 +1,16 @@
-/* -*- Mode:C++; c-file-style:"gnu"; indent-tabs-mode:nil; -*- */
-/* Skeleton code wireless-tcp-bulk-send.cc
- */
+/* aodv_rtt.cc                                                                                */
+/* AUTHOR: ALAN LIN                                                                           */
+/* DONOR CODE wireless-tcp-bulk-send.cc                                                       */
+/*                                                                                            */
+/* DERIVED FROM MY wireless_rtt.cc TO PROVIDE AODV ROUTING                                    */
+/*                                                                                            */
+/* WIRELESS ADHOC NETWORK TOPOLOGY WITH THE ABILITY SCALE UP TO NUMBEROUS MOBILE/STATIONARY   */
+/* NODES ON THE NETWORK. THIS CODE ALLOWS FOR VARIOUS PLACEMENT MODELS, MOBILITY MODELS       */
+/* AS WELL AS TRAFFIC PATTERNS.                                                               */
+/*                                                                                            */
+/* THE NODE REPLIES ON A MODIEFIED rtt-estimator.cc/h AS WELL AS tcp-socket-base.cc/H         */
+/* TO PROVIDE TRACING OF DELTA AND REAL RTT VALUES.                                           */
+/*****************************************************************************************/
 
 #include <string>
 #include <iostream>
@@ -24,7 +34,7 @@ using namespace std;
 
 
 NS_LOG_COMPONENT_DEFINE ("AODVRtt");
-
+/* FOR INITIALIZING TRACES */
 bool firstCwnd = true;
 bool firstSshThr = true;
 bool firstRtt = true;
@@ -53,6 +63,7 @@ uint32_t ssThreshValue;
 
 /*****************************************************************************/
 /* TRACE PATHS                                                               */
+/* THE ASTERICKS ARE USED IN THE PATH AS WILDCARD TO TRACE ALL NODES/SOCKETS */
 /*****************************************************************************/
 
 std::string CwndPath("/NodeList/*/$ns3::TcpL4Protocol/SocketList/*/CongestionWindow");
@@ -64,9 +75,11 @@ std::string RttVarPath("/NodeList/*/$ns3::TcpL4Protocol/SocketList/*/RTTvar");
 std::string DeltaPath("/NodeList/*/$ns3::TcpL4Protocol/SocketList/*/Delta");
 
 
-/*****************************************************************************/
-/*CALLBACK FUNCTIONS FOR TRACES                                               */
-/*****************************************************************************/
+/********************************************************************************/
+/*CALLBACK FUNCTIONS FOR TRACES                                                 */
+/*MOST TRACE FUNCTION WERE FROM OTHER NS3 EXAMPLE                               */
+/*ADDED TRACERS ARE DELTA AND REAL RTT AS WELL AS MODIFIED RttTracer FOR nodeID */
+/*******************************************************************************/
 static void
 CwndTracer (uint32_t oldval, uint32_t newval)
 {
@@ -230,27 +243,24 @@ PhyTxTrace (std::string context, Ptr<const Packet> packet, WifiMode mode, WifiPr
 int
 main (int argc, char *argv[])
 {
-  uint32_t maxBytes = 300; //megaBytes
-  double SimTime = 10.0;
-  std::string transport_prot = "TcpWestwood";
-  //NS_LOG_INFO ("error probabiltiy 0.0");
-  double error_p = 0.0;
+  uint32_t run = 0;                 // RUN INDEXT FOR REPEATABLE SEED
+  uint32_t seed = 1;                // SEED FOR REPEATABILITY
+  uint32_t maxBytes = 300;          // MAX NUMBER OF BYTES TRANSMITTED PER NODE IN MEGABYTES
+                                    // USED IN CONSTANT TRAFFIC AND INCREASING TRAFFIC MODEL
 
-  uint32_t run = 0;
-  uint32_t seed = 1;
-  double range = 250;
-  /*defines the interval in with additional nodes can start transmitting*/
-  /*DEFUALT 2 Seconds*/
-  double delay_start_interval = 2.0;
-  /*defines number of nodes to to be added to transmitting set every interval*/
-  /*DEFUALT 3nodes*/
-  uint16_t num_add_trans_node = 3;
-  /*the number for flows*/
-  uint16_t num_flows = 1;
 
-  std::string mobility_model = "RandomWalk";
-  std::string placement = "Grid";
-  std::string traffic_pattern = "Burst";
+  double SimTime = 10.0;            // IN SECONDS
+  double error_p = 0.0;             // FOR ADDING ERROR PROPABILITY
+  double range = 250;               // RANGE FOR TRANSMISSION CUTOFF
+  double delay_start_interval = 2.0;// DELAY INTERVAL FOR INCREASING TRAFFIC MODEL FOR ADDING FLOWS
+
+  uint16_t num_add_trans_node = 3;  // NUMBER OF NODES/FLOWS TO BE ADDED PER INTERVAL FOR INCREASING TRAFFIC MODEL
+  uint16_t num_flows = 1;           // NUMBER OF FLOWS IN THE SIMULATION
+
+  std::string transport_prot = "TcpWestwood";   // TCP VARIANT
+  std::string mobility_model = "RandomWalk";    // MOBILITY MODEL
+  std::string placement = "UniformDisc";               // NODE PLACEMENT MODEL
+  std::string traffic_pattern = "Burst";   // TRAFFIC PATTERN MODEL
 
   /*LOG COMPONENTS*/
   LogComponentEnable("AODVRtt", LOG_LEVEL_INFO);
@@ -258,19 +268,20 @@ main (int argc, char *argv[])
   //  LogComponentEnable ("BulkSendApplication", LOG_LEVEL_INFO);
   //  LogComponentEnable ("TcpSocketBase", LOG_LEVEL_LOGIC);
 
-  std::string traceFile = "wireless.ns_movements";
-  std::string tr_file_name = "";
-  std::string cwnd_tr_file_name = "";
-  std::string ssthresh_tr_file_name = "";
-  std::string rtt_tr_file_name = "aodv.rtt";
-  std::string rto_tr_file_name = "";
-  std::string rwin_tr_file_name = "";
-  std::string rttvar_tr_file_name = "";
-  std::string rrtt_tr_file_name = "aodv.rrtt";
-  std::string delta_tr_file_name = "aodv.delta";
 
+    /*TRACE FILE NAMES*/
+    std::string traceFile = "aodv.ns_movements";
+    std::string tr_file_name = "";
+    std::string cwnd_tr_file_name = "";
+    std::string ssthresh_tr_file_name = "";
+    std::string rtt_tr_file_name = "aodv.rtt";
+    std::string rto_tr_file_name = "";
+    std::string rwin_tr_file_name = "";
+    std::string rttvar_tr_file_name = "";
+    std::string rrtt_tr_file_name = "aodv.rrtt";
+    std::string delta_tr_file_name = "aodv.delta";
 
-
+  /*COMMAND PROMPT: DISPLAY FOR --help AND TAKES IN ARGS TO MODIFY PARAMETERS*/
   CommandLine cmd;
   cmd.AddValue ("transport_prot", "Transport protocol to use: TcpTahoe, TcpReno, TcpNewReno, TcpWestwood, TcpWestwoodPlus ", transport_prot);
   cmd.AddValue ("MBytes", "maximum number of megabytes during the transfer ", maxBytes);
@@ -295,10 +306,9 @@ main (int argc, char *argv[])
   cmd.AddValue ("mobility_model", "Mobility Mode (RandomWalk|ConstantPosition|RandomWaypoint) Default:", mobility_model);
   cmd.AddValue ("placement", "Node Placement Model (Grid|UniformDisc) Default:", placement);
   cmd.AddValue ("traffic_pattern", "Traffic Patter (Constant| Increasing| Burst) Default:", traffic_pattern);
-
   cmd.Parse (argc, argv);
 
-
+  /*SET RUN SEEDS FOR REPEATABILITY*/
   SeedManager::SetSeed (seed);
   SeedManager::SetRun (run);
 
@@ -337,9 +347,7 @@ main (int argc, char *argv[])
 
 
 
-//
-// Explicitly create the nodes required by the topology (shown above).
-//
+  //*CREATE NODES - NODES*/
   NS_LOG_INFO ("Create nodes.");
   uint16_t num_nodes=(2*num_flows);
 
@@ -347,7 +355,7 @@ main (int argc, char *argv[])
   nodes.Create(num_nodes);
 
 
-
+  /*DISIPLAY SIMULATION PARAMETERS*/
   NS_LOG_INFO ("Total Number of Nodes: " << NodeList::GetNNodes());
   NS_LOG_INFO ("Total Number Flows: " << num_flows);
   if (num_flows > num_add_trans_node) {
@@ -374,25 +382,20 @@ main (int argc, char *argv[])
   error_model.SetUnit (RateErrorModel::ERROR_UNIT_PACKET);
   error_model.SetRate (error_p);
 
-
+  /*CONFIGURE L1/2*/
   NqosWifiMacHelper wifiMac = NqosWifiMacHelper::Default ();
+  // Mac Layer
   wifiMac.SetType ("ns3::AdhocWifiMac");
   YansWifiPhyHelper wifiPhy = YansWifiPhyHelper::Default ();
-
+  NS_LOG_INFO ("Create channels.");
   YansWifiChannelHelper wifiChannel = YansWifiChannelHelper::Default ();
   wifiPhy.SetChannel (wifiChannel.Create ());
   WifiHelper wifi = WifiHelper::Default ();
   wifi.SetRemoteStationManager ("ns3::ConstantRateWifiManager", "DataMode", StringValue ("OfdmRate6Mbps"), "RtsCtsThreshold", UintegerValue (0));
 
-  //
-  // Explicitly create the point-to-point link required by the topology (shown above).
-  NS_LOG_INFO ("Create channels.");
 
 
-
-  // Mac Layer
-
-
+  /*PROPAGATION DELAY MODEL*/
   NS_LOG_INFO ("Propataion Delay Model: Random Propagation Delay Model");
   wifiChannel.SetPropagationDelay ("ns3::RandomPropagationDelayModel");
 
@@ -404,26 +407,21 @@ main (int argc, char *argv[])
 
 
 
-  //wifiHelper.SetRemoteStationManager("ns3::MinstrelWifiManager");
-
+  /*INSTALL L1/L2 ON NODES*/
   NetDeviceContainer devices = wifi.Install(wifiPhy, wifiMac, nodes);
 
 
 
   NS_LOG_INFO ("Install Internet Stack.");
 
-  //
-  // Install the internet stack on the nodes
-  //
-
+  /*INSTALL INTERNET STACK*/
+  /*INSTALL AODV ROUTING*/
   AodvHelper aodv;
   InternetStackHelper internet;
   internet.SetRoutingHelper (aodv);
   internet.Install (nodes);
 
-  //
-  // We've got the "hardware" in place.  Now we need to add IP addresses.
-  //
+  /*ASSIGN IP*/
   NS_LOG_INFO ("Assign IP Addresses.");
   Ipv4AddressHelper ipv4;
   ipv4.SetBase ("10.1.1.0", "255.255.255.0");
@@ -432,8 +430,9 @@ main (int argc, char *argv[])
 
 
 
-  // mobility.
+  /*MOBILITY FOR ALL OTHER NODES*/
   MobilityHelper mobility;
+  /*GRID PLACEMENT, NODES ARE PLACE SPAVED OUT ON A GRID WITH FOLLOWING PARAMETERS*/
   if (placement.compare ("Grid") == 0)
   {
   mobility.SetPositionAllocator ("ns3::GridPositionAllocator",
@@ -445,12 +444,14 @@ main (int argc, char *argv[])
                                   "LayoutType", StringValue ("RowFirst"));
  }else if (placement.compare ("UniformDisc") == 0)
  {
+   /*UNIFORM DISK, NODES ARE SCATTERED UNIFORMLY IN THIS RADIUS AROUND THE SPECIFIED AXIS*/
    double radius = 20.0;
    mobility.SetPositionAllocator ("ns3::UniformDiscPositionAllocator",
                                        "X", DoubleValue (50.0),
                                        "Y", DoubleValue (50.0),
                                        "rho", DoubleValue (radius));
   }
+  /*OTHER PLACEMENT MODELS*/
   // ListPositionAllocator, RandomRectanglePositionAllocator, RandomDiscPositionAllocator Can also be implemented
 
 
@@ -511,20 +512,17 @@ main (int argc, char *argv[])
   ApplicationContainer sinkApp;
 
 
-
+  /*BURST MODE CONFIGURATIONS*/
   if (traffic_pattern.compare ("Burst") == 0)
   {
 
     NS_LOG_INFO ("Traffic Pattern: Burst" );
     // Create the OnOff applications to send TCP
-
+    /*INSTALL SOURCE APPS MOBILE STATION*/
     for (int i = 0; i < num_flows; i++)
       {
 
         OnOffHelper source("ns3::TcpSocketFactory",Address ());
-        NS_LOG_INFO ("loop 2" );
-
-
         source.SetAttribute ("OnTime", StringValue ("ns3::ConstantRandomVariable[Constant=1]"));
         //source.SetAttribute ("OffTime", RandomVariableValue (ConstantVariable (0)));
         source.SetAttribute ("OffTime", StringValue ("ns3::ConstantRandomVariable[Constant=1]"));
@@ -537,7 +535,7 @@ main (int argc, char *argv[])
         sourceApps.Start (Seconds (0.1));
         sourceApps.Stop (Seconds (SimTime));
       }
-
+      /*INSTALL SINK APPS MOBILE STATION*/
       PacketSinkHelper sink ("ns3::TcpSocketFactory", InetSocketAddress (Ipv4Address::GetAny (), port));
       for (int i = 0; i < num_flows; i++)
       {
@@ -550,6 +548,7 @@ main (int argc, char *argv[])
 
       if (traffic_pattern.compare ("Constant") ==  0)
       {
+        /*CONSTANT TRANSMISSION*/
           NS_LOG_INFO ("Traffic Pattern: Constant");
           for (int i = 0; i < num_flows; i++)
             {
@@ -566,6 +565,7 @@ main (int argc, char *argv[])
         }
         else if (traffic_pattern.compare ("Increasing") ==  0)
         {
+          /*INCREASING FLOWS OVERTIME*/
           NS_LOG_INFO ("Traffic Pattern: Increasing");
           int j = 0;
           for (int i = 0; i < num_flows; i++)
@@ -600,10 +600,6 @@ main (int argc, char *argv[])
       //wifiHelper.EnableAsciiAll (ascii.CreateFileStream ("wireless_rtt.tr"));
       wifiPhy.EnablePcapAll ("aodv_rtt", true);
     }
-//
-// Now, do the actual simulation.
-//
-  // Setting up Animation Interface nicely
 
     AnimationInterface anim ("aodv_rtt.xml");
 

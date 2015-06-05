@@ -1,15 +1,15 @@
-/* wireless_rtt.cc
-/* AUTHOR: ALAN LIN
-/* DONOR CODE wireless-tcp-bulk-send.cc
-/*
-/* WIRELESS AP TOPOLOGY WITH THE ABILITY SCALE UP TO NUMBEROUS MOBILE/STATIONARY
-/* NODES ON THE NETWORK. THIS CODE ALLOWS FOR VARIOUS PLACEMENT MODELS, MOBILITY MODELS
-/* AS WELL AS TRAFFIC PATTERNS.
-/*
-/* THE NODE REPLIES ON A MODIEFIED rtt-estimator.cc/h AS WELL AS tcp-socket-base.cc/H
-/* TO PROVIDE TRACING OF DELTA AND REAL RTT VALUES.
- *****************************************************************************************/
 
+ /* aodv_rtt.cc                                                                                */
+ /* AUTHOR: ALAN LIN                                                                           */
+ /* DONOR CODE wireless-tcp-bulk-send.cc                                                       */
+ /*                                                                                            */
+ /* WIRELESS AP TOPOLOGY WITH THE ABILITY SCALE UP TO NUMBEROUS MOBILE/STATIONARY              */
+ /* NODES ON THE NETWORK. THIS CODE ALLOWS FOR VARIOUS PLACEMENT MODELS, MOBILITY MODELS       */
+ /* AS WELL AS TRAFFIC PATTERNS.                                                               */
+ /*                                                                                            */
+ /* THE NODE REPLIES ON A MODIEFIED rtt-estimator.cc/h AS WELL AS tcp-socket-base.cc/H         */
+ /* TO PROVIDE TRACING OF DELTA AND REAL RTT VALUES.                                           */
+ /*****************************************************************************************/
 #include <string>
 #include <iostream>
 #include "ns3/core-module.h"
@@ -31,7 +31,7 @@ using namespace std;
 
 
 NS_LOG_COMPONENT_DEFINE ("WirelessRtt");
-
+/* FOR INITIALIZING TRACES */
 bool firstCwnd = true;
 bool firstSshThr = true;
 bool firstRtt = true;

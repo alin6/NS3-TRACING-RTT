@@ -262,12 +262,12 @@ main (int argc, char *argv[])
   std::string tr_file_name = "";
   std::string cwnd_tr_file_name = "";
   std::string ssthresh_tr_file_name = "";
-  std::string rtt_tr_file_name = "wireless.rtt";
+  std::string rtt_tr_file_name = "aodv.rtt";
   std::string rto_tr_file_name = "";
   std::string rwin_tr_file_name = "";
   std::string rttvar_tr_file_name = "";
-  std::string rrtt_tr_file_name = "wireless.rrtt";
-  std::string delta_tr_file_name = "wireless.delta";
+  std::string rrtt_tr_file_name = "aodv.rrtt";
+  std::string delta_tr_file_name = "aodv.delta";
 
 
 
@@ -437,8 +437,8 @@ main (int argc, char *argv[])
   if (placement.compare ("Grid") == 0)
   {
   mobility.SetPositionAllocator ("ns3::GridPositionAllocator",
-                                  "MinX", DoubleValue (35.0),
-                                  "MinY", DoubleValue (40.0),
+                                  "MinX", DoubleValue (25.0),
+                                  "MinY", DoubleValue (25.0),
                                   "DeltaX", DoubleValue (5.0),
                                   "DeltaY", DoubleValue (10.0),
                                   "GridWidth", UintegerValue (5),
@@ -502,17 +502,25 @@ main (int argc, char *argv[])
   //
   // Create a BulkSendApplication
   //
+  Config::SetDefault ("ns3::OnOffApplication::PacketSize", UintegerValue (4096));
+  Config::SetDefault ("ns3::OnOffApplication::DataRate", StringValue ("6Mbps"));
   uint16_t port = 8080;  // well-known echo port number
 
-  ApplicationContainer sourceApps;
 
+  ApplicationContainer sourceApps;
+  ApplicationContainer sinkApp;
+
+
+
+  if (traffic_pattern.compare ("Burst") == 0)
+  {
 
     NS_LOG_INFO ("Traffic Pattern: Burst" );
     // Create the OnOff applications to send TCP
 
     for (int i = 0; i < num_flows; i++)
       {
-NS_LOG_INFO ("loop 1" );
+
         OnOffHelper source("ns3::TcpSocketFactory",Address ());
         NS_LOG_INFO ("loop 2" );
 
@@ -521,22 +529,70 @@ NS_LOG_INFO ("loop 1" );
         //source.SetAttribute ("OffTime", RandomVariableValue (ConstantVariable (0)));
         source.SetAttribute ("OffTime", StringValue ("ns3::ConstantRandomVariable[Constant=1]"));
 
-        NS_LOG_INFO ("loop 3" );
 
-        AddressValue remoteAddress(InetSocketAddress (interface.GetAddress ((2*i)+1), port));
+
+        AddressValue remoteAddress(InetSocketAddress (interface.GetAddress (num_flows + i), port));
         source.SetAttribute ("Remote", remoteAddress);
-        sourceApps = source.Install (nodes.Get (2*i));
+        sourceApps = source.Install (nodes.Get (i));
         sourceApps.Start (Seconds (0.1));
         sourceApps.Stop (Seconds (SimTime));
       }
-      ApplicationContainer sinkApp;
+
       PacketSinkHelper sink ("ns3::TcpSocketFactory", InetSocketAddress (Ipv4Address::GetAny (), port));
       for (int i = 0; i < num_flows; i++)
       {
-        sinkApp = sink.Install (nodes.Get ((2*i)+1));
+        sinkApp = sink.Install (nodes.Get (num_flows + i));
         sinkApp.Start (Seconds (0.1));
         sinkApp.Stop (Seconds (SimTime));
       }
+  }else
+  {
+
+      if (traffic_pattern.compare ("Constant") ==  0)
+      {
+          NS_LOG_INFO ("Traffic Pattern: Constant");
+          for (int i = 0; i < num_flows; i++)
+            {
+              /*NAME OF PROTOCOL, DESTINATION ADDRESS*/
+              BulkSendHelper source ("ns3::TcpSocketFactory",
+                                     InetSocketAddress (interface.GetAddress (num_flows + i), port));
+              // Set the amount of data to send in bytes.  Zero is unlimited.
+              source.SetAttribute ("MaxBytes", UintegerValue (int(maxBytes* 1000000)));
+              sourceApps = source.Install (nodes.Get (i));
+              sourceApps.Start (Seconds (0.1));
+              sourceApps.Stop (Seconds (SimTime));
+            }
+
+        }
+        else if (traffic_pattern.compare ("Increasing") ==  0)
+        {
+          NS_LOG_INFO ("Traffic Pattern: Increasing");
+          int j = 0;
+          for (int i = 0; i < num_flows; i++)
+            {
+              /*NAME OF PROTOCOL, DESTINATION ADDRESS*/
+              BulkSendHelper source ("ns3::TcpSocketFactory",
+                                     InetSocketAddress (interface.GetAddress (num_flows + i), port));
+              // Set the amount of data to send in bytes.  Zero is unlimited.
+              source.SetAttribute ("MaxBytes", UintegerValue (int(maxBytes* 1000000)));
+              if (i % num_add_trans_node == 2)  j++ ;
+              sourceApps = source.Install (nodes.Get (i));
+              sourceApps.Start (Seconds (0.0 + (j*delay_start_interval)));
+              sourceApps.Stop (Seconds (SimTime));
+            }
+        }
+        //SET SECOND HALF OF NODES AS SINKS
+        PacketSinkHelper sink ("ns3::TcpSocketFactory", InetSocketAddress (Ipv4Address::GetAny (), port));
+        for (int i = 0; i < num_flows; i++)
+        {
+          sinkApp = sink.Install (nodes.Get (num_flows + i));
+          sinkApp.Start (Seconds (0.1));
+          sinkApp.Stop (Seconds (SimTime));
+        }
+
+    }
+
+
 
   if (true)
     {
@@ -550,23 +606,19 @@ NS_LOG_INFO ("loop 1" );
   // Setting up Animation Interface nicely
 
     AnimationInterface anim ("aodv_rtt.xml");
-    /*Assign Label for access point*/
-    anim.UpdateNodeDescription (nodes.Get (0), "wireless access point");
-    /*base station color*/
-    anim.UpdateNodeColor(nodes.Get (0), 0, 0,255);
 
     /*Assign Label for mobile wireless stations*/
-    for (int i = 0; i < num_flows; i++)
+    for (int i = 0; i < (2*num_flows); i++)
       {
         char str[18];
-        sprintf(str,"wireless station %d", (i+1));
+        sprintf(str,"MobileNode_%d", (i+1));
         anim.UpdateNodeDescription (nodes.Get (i), str);
         /*enable packet metadata*/
         anim.EnablePacketMetadata(anim_meta);
       }
 
   /*Residual code, keeps trace of total databytes recieved at sink*/
-  Ptr<PacketSink> sink2 = DynamicCast<PacketSink> (sinkApp.Get (0));
+  Ptr<PacketSink> sink1 = DynamicCast<PacketSink> (sinkApp.Get (0));
 
 /********************************************************************************/
 /*HOOKS FOR STARTING TRACES *****************************************************/
@@ -624,7 +676,7 @@ if (delta_tr_file_name.compare ("") != 0)
   Simulator::Destroy ();
   NS_LOG_INFO ("Done.");
 
-
-  std::cout << "Total Bytes Received: " << sink2->GetTotalRx () << std::endl;
-  std::cout << "Total Throughput: " << (sink2->GetTotalRx ()*8)/(1000000*SimTime) << " Mbps" << std::endl;
+  //PRINTS OUT THROUGHPUT INFO OF FIRST SINK
+  std::cout << "Total Bytes Received: " << sink1->GetTotalRx () << std::endl;
+  std::cout << "Total Throughput: " << (sink1->GetTotalRx ()*8)/(1000000*SimTime) << " Mbps" << std::endl;
 }

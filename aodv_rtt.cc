@@ -4,6 +4,7 @@
 
 #include <string>
 #include <iostream>
+#include "ns3/aodv-module.h"
 #include "ns3/core-module.h"
 #include "ns3/point-to-point-module.h"
 #include "ns3/internet-module.h"
@@ -22,7 +23,7 @@ using namespace ns3;
 using namespace std;
 
 
-NS_LOG_COMPONENT_DEFINE ("WirelessRtt");
+NS_LOG_COMPONENT_DEFINE ("AODVRtt");
 
 bool firstCwnd = true;
 bool firstSshThr = true;
@@ -249,10 +250,10 @@ main (int argc, char *argv[])
 
   std::string mobility_model = "RandomWalk";
   std::string placement = "Grid";
-  std::string traffic_pattern = "Increasing";
+  std::string traffic_pattern = "Burst";
 
   /*LOG COMPONENTS*/
-  LogComponentEnable("WirelessRtt", LOG_LEVEL_INFO);
+  LogComponentEnable("AODVRtt", LOG_LEVEL_INFO);
   //  LogComponentEnable("ConstantRateWifiManager", LOG_LEVEL_INFO);
   //  LogComponentEnable ("BulkSendApplication", LOG_LEVEL_INFO);
   //  LogComponentEnable ("TcpSocketBase", LOG_LEVEL_LOGIC);
@@ -326,7 +327,6 @@ main (int argc, char *argv[])
       Config::SetDefault ("ns3::TcpL4Protocol::SocketType", TypeIdValue (TcpWestwood::GetTypeId ()));
       Config::SetDefault ("ns3::TcpWestwood::ProtocolType", EnumValue (TcpWestwood::WESTWOODPLUS));
       Config::SetDefault ("ns3::TcpWestwood::FilterType", EnumValue (TcpWestwood::TUSTIN));
-
     }
   else
     {
@@ -341,14 +341,14 @@ main (int argc, char *argv[])
 // Explicitly create the nodes required by the topology (shown above).
 //
   NS_LOG_INFO ("Create nodes.");
-  NodeContainer stas, ap;
-  ap.Create(1);
-  NS_LOG_INFO ("Number of Nodes After AP: " << NodeList::GetNNodes());
-  stas.Create(num_flows);
+  uint16_t num_nodes=(2*num_flows);
+
+  NodeContainer nodes;
+  nodes.Create(num_nodes);
 
 
 
-  NS_LOG_INFO ("Total Number of Nodes After Adding Wifi Stations: " << NodeList::GetNNodes());
+  NS_LOG_INFO ("Total Number of Nodes: " << NodeList::GetNNodes());
   NS_LOG_INFO ("Total Number Flows: " << num_flows);
   if (num_flows > num_add_trans_node) {
     NS_LOG_INFO ("===================================================================");
@@ -375,55 +375,38 @@ main (int argc, char *argv[])
   error_model.SetRate (error_p);
 
 
+  NqosWifiMacHelper wifiMac = NqosWifiMacHelper::Default ();
+  wifiMac.SetType ("ns3::AdhocWifiMac");
+  YansWifiPhyHelper wifiPhy = YansWifiPhyHelper::Default ();
+
+  YansWifiChannelHelper wifiChannel = YansWifiChannelHelper::Default ();
+  wifiPhy.SetChannel (wifiChannel.Create ());
+  WifiHelper wifi = WifiHelper::Default ();
+  wifi.SetRemoteStationManager ("ns3::ConstantRateWifiManager", "DataMode", StringValue ("OfdmRate6Mbps"), "RtsCtsThreshold", UintegerValue (0));
 
   //
   // Explicitly create the point-to-point link required by the topology (shown above).
   NS_LOG_INFO ("Create channels.");
-  // Wifi Channel
-  YansWifiChannelHelper wifiChannelHelper = YansWifiChannelHelper::Default ();
-  Ptr<YansWifiChannel> wifiChannel = wifiChannelHelper.Create ();
 
-  // Physical Layer
-  YansWifiPhyHelper wifiPhyHelper = YansWifiPhyHelper::Default ();
-  wifiPhyHelper.SetChannel(wifiChannel);
 
 
   // Mac Layer
-  NqosWifiMacHelper wifiMacHelper = NqosWifiMacHelper::Default ();
-  Ssid ssid = Ssid ("ns-3-ssid");
+
 
   NS_LOG_INFO ("Propataion Delay Model: Random Propagation Delay Model");
-  wifiChannelHelper.SetPropagationDelay ("ns3::RandomPropagationDelayModel");
+  wifiChannel.SetPropagationDelay ("ns3::RandomPropagationDelayModel");
 
   /*CUT OFF RANGE*/
   NS_LOG_INFO ("Propagation range: " << range);
-  wifiChannelHelper.AddPropagationLoss ("ns3::RangePropagationLossModel", "MaxRange", DoubleValue(range));
+  wifiChannel.AddPropagationLoss ("ns3::RangePropagationLossModel", "MaxRange", DoubleValue(range));
   //MORE MODELS AT https://www.nsnam.org/docs/release/3.15/doxygen/group__propagation.html
   NS_LOG_INFO ("===================================================================");
 
 
-  // Install the phy, mac on the station node
-  wifiMacHelper.SetType ("ns3::StaWifiMac",
-                        "Ssid", SsidValue (ssid),
-                        "ActiveProbing", BooleanValue (false));
-  WifiHelper wifiHelper = WifiHelper::Default ();
-  wifiHelper.SetStandard(WIFI_PHY_STANDARD_80211a);
-  wifiHelper.SetRemoteStationManager ("ns3::ConstantRateWifiManager",
-                                "DataMode", StringValue ("OfdmRate54Mbps"));
+
   //wifiHelper.SetRemoteStationManager("ns3::MinstrelWifiManager");
 
-  NetDeviceContainer wifiContainer = wifiHelper.Install(wifiPhyHelper, wifiMacHelper, stas);
-
-
-  // Install the phy, mac on the ap node
-  wifiMacHelper.SetType ("ns3::ApWifiMac",
-                       "Ssid", SsidValue (ssid));
-  wifiHelper.SetStandard(WIFI_PHY_STANDARD_80211a);
-  wifiHelper.SetRemoteStationManager ("ns3::ConstantRateWifiManager",
-                                "DataMode", StringValue ("OfdmRate54Mbps"));
-  //wifiHelper.SetRemoteStationManager("ns3::MinstrelWifiManager");
-
-  NetDeviceContainer apContainer = wifiHelper.Install(wifiPhyHelper, wifiMacHelper, ap);
+  NetDeviceContainer devices = wifi.Install(wifiPhy, wifiMac, nodes);
 
 
 
@@ -432,11 +415,11 @@ main (int argc, char *argv[])
   //
   // Install the internet stack on the nodes
   //
+
+  AodvHelper aodv;
   InternetStackHelper internet;
-  internet.Install (stas);
-  internet.Install (ap);
-
-
+  internet.SetRoutingHelper (aodv);
+  internet.Install (nodes);
 
   //
   // We've got the "hardware" in place.  Now we need to add IP addresses.
@@ -444,26 +427,13 @@ main (int argc, char *argv[])
   NS_LOG_INFO ("Assign IP Addresses.");
   Ipv4AddressHelper ipv4;
   ipv4.SetBase ("10.1.1.0", "255.255.255.0");
-  Ipv4InterfaceContainer i = ipv4.Assign (apContainer);
-  Ipv4InterfaceContainer i1 = ipv4.Assign (wifiContainer);
+  Ipv4InterfaceContainer interface = ipv4.Assign (devices);
+
 
 
 
   // mobility.
   MobilityHelper mobility;
-  Ptr<ListPositionAllocator> positionAlloc = CreateObject<ListPositionAllocator> ();
-  //X,Y,Z
-  positionAlloc->Add (Vector (50.0, 50.0, 0.0));
-
-
-  mobility.SetPositionAllocator (positionAlloc);
-
-  mobility.SetMobilityModel ("ns3::ConstantPositionMobilityModel");
-
-  mobility.Install (ap);
-
-
-
   if (placement.compare ("Grid") == 0)
   {
   mobility.SetPositionAllocator ("ns3::GridPositionAllocator",
@@ -521,7 +491,7 @@ main (int argc, char *argv[])
                            );
   }
 
-  mobility.Install (stas);
+  mobility.Install (nodes);
 
 
 
@@ -532,115 +502,71 @@ main (int argc, char *argv[])
   //
   // Create a BulkSendApplication
   //
-  uint16_t port = 9;  // well-known echo port number
+  uint16_t port = 8080;  // well-known echo port number
 
   ApplicationContainer sourceApps;
 
 
-  if (traffic_pattern.compare ("Burst") == 0)
-  {
     NS_LOG_INFO ("Traffic Pattern: Burst" );
     // Create the OnOff applications to send TCP
-    OnOffHelper source ("ns3::TcpSocketFactory", InetSocketAddress (i.GetAddress (0), port));
-    source.SetAttribute ("OnTime", StringValue ("ns3::ConstantRandomVariable[Constant=1]"));
-    //source.SetAttribute ("OffTime", RandomVariableValue (ConstantVariable (0)));
-
-    source.SetAttribute ("OffTime", StringValue ("ns3::ConstantRandomVariable[Constant=1]"));
 
     for (int i = 0; i < num_flows; i++)
       {
-        sourceApps = source.Install (stas.Get (i));
+NS_LOG_INFO ("loop 1" );
+        OnOffHelper source("ns3::TcpSocketFactory",Address ());
+        NS_LOG_INFO ("loop 2" );
+
+
+        source.SetAttribute ("OnTime", StringValue ("ns3::ConstantRandomVariable[Constant=1]"));
+        //source.SetAttribute ("OffTime", RandomVariableValue (ConstantVariable (0)));
+        source.SetAttribute ("OffTime", StringValue ("ns3::ConstantRandomVariable[Constant=1]"));
+
+        NS_LOG_INFO ("loop 3" );
+
+        AddressValue remoteAddress(InetSocketAddress (interface.GetAddress ((2*i)+1), port));
+        source.SetAttribute ("Remote", remoteAddress);
+        sourceApps = source.Install (nodes.Get (2*i));
         sourceApps.Start (Seconds (0.1));
         sourceApps.Stop (Seconds (SimTime));
       }
-
-  } else
-  {
-      /*NAME OF PROTOCOL, DESTINATION ADDRESS*/
-      BulkSendHelper source ("ns3::TcpSocketFactory",
-                             InetSocketAddress (i.GetAddress (0), port));
-      //source.SetAttribute("SendSize", UintegerValue (1500));
-      // Set the amount of data to send in bytes.  Zero is unlimited.
-      source.SetAttribute ("MaxBytes", UintegerValue (int(maxBytes* 1000000)));
-
-
-    // MOBILE NODE(S) AS SOURCE(S)
-
-
-    if (traffic_pattern.compare ("Constant") ==  0)
-    {
-      NS_LOG_INFO ("Traffic Pattern: Constant");
+      ApplicationContainer sinkApp;
+      PacketSinkHelper sink ("ns3::TcpSocketFactory", InetSocketAddress (Ipv4Address::GetAny (), port));
       for (int i = 0; i < num_flows; i++)
-        {
-          sourceApps = source.Install (stas.Get (i));
-          sourceApps.Start (Seconds (0.1));
-          sourceApps.Stop (Seconds (SimTime));
-        }
-    }
-    else if (traffic_pattern.compare ("Increasing") ==  0)
-    {
-      NS_LOG_INFO ("Traffic Pattern: Increasing");
-      int j = 0;
-      for (int i = 0; i < num_flows; i++)
-        {
-          if (i % num_add_trans_node == 2)  j++ ;
-          sourceApps = source.Install (stas.Get (i));
-          sourceApps.Start (Seconds (0.0 + (j*delay_start_interval)));
-          sourceApps.Stop (Seconds (SimTime));
-        }
-    }
-  }
+      {
+        sinkApp = sink.Install (nodes.Get ((2*i)+1));
+        sinkApp.Start (Seconds (0.1));
+        sinkApp.Stop (Seconds (SimTime));
+      }
 
-
-
-  //
-  // Create a PacketSinkApplication and install it on node 1
-
-
-
-  // STATIONARY AP AS SINK
-  PacketSinkHelper sink ("ns3::TcpSocketFactory",
-                         InetSocketAddress (Ipv4Address::GetAny (), port));
-
-
-
-  ApplicationContainer sinkApps = sink.Install (ap.Get (0));
-  sinkApps.Start (Seconds (0.0));
-  sinkApps.Stop (Seconds (SimTime));
-
-  Config::SetDefault ("ns3::TcpSocket::SegmentSize", UintegerValue (1460));
-//
-// Set up tracing if enabled
-//
   if (true)
     {
       //AsciiTraceHelper ascii;
       //wifiHelper.EnableAsciiAll (ascii.CreateFileStream ("wireless_rtt.tr"));
-      wifiPhyHelper.EnablePcapAll ("wireless_rtt", true);
+      wifiPhy.EnablePcapAll ("aodv_rtt", true);
     }
 //
 // Now, do the actual simulation.
 //
   // Setting up Animation Interface nicely
 
-    AnimationInterface anim ("wireless_rtt.xml");
+    AnimationInterface anim ("aodv_rtt.xml");
     /*Assign Label for access point*/
-    anim.UpdateNodeDescription (ap.Get (0), "wireless access point");
+    anim.UpdateNodeDescription (nodes.Get (0), "wireless access point");
     /*base station color*/
-    anim.UpdateNodeColor(ap.Get (0), 0, 0,255);
+    anim.UpdateNodeColor(nodes.Get (0), 0, 0,255);
 
     /*Assign Label for mobile wireless stations*/
     for (int i = 0; i < num_flows; i++)
       {
         char str[18];
         sprintf(str,"wireless station %d", (i+1));
-        anim.UpdateNodeDescription (stas.Get (i), str);
+        anim.UpdateNodeDescription (nodes.Get (i), str);
         /*enable packet metadata*/
         anim.EnablePacketMetadata(anim_meta);
       }
 
   /*Residual code, keeps trace of total databytes recieved at sink*/
-  Ptr<PacketSink> sink1 = DynamicCast<PacketSink> (sinkApps.Get (0));
+  Ptr<PacketSink> sink2 = DynamicCast<PacketSink> (sinkApp.Get (0));
 
 /********************************************************************************/
 /*HOOKS FOR STARTING TRACES *****************************************************/
@@ -699,6 +625,6 @@ if (delta_tr_file_name.compare ("") != 0)
   NS_LOG_INFO ("Done.");
 
 
-  std::cout << "Total Bytes Received: " << sink1->GetTotalRx () << std::endl;
-  std::cout << "Total Throughput: " << (sink1->GetTotalRx ()*8)/(1000000*SimTime) << " Mbps" << std::endl;
+  std::cout << "Total Bytes Received: " << sink2->GetTotalRx () << std::endl;
+  std::cout << "Total Throughput: " << (sink2->GetTotalRx ()*8)/(1000000*SimTime) << " Mbps" << std::endl;
 }

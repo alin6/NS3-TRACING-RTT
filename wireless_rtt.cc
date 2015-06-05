@@ -1,6 +1,14 @@
-/* -*- Mode:C++; c-file-style:"gnu"; indent-tabs-mode:nil; -*- */
-/* Skeleton code wireless-tcp-bulk-send.cc
- */
+/* wireless_rtt.cc
+/* AUTHOR: ALAN LIN
+/* DONOR CODE wireless-tcp-bulk-send.cc
+/*
+/* WIRELESS AP TOPOLOGY WITH THE ABILITY SCALE UP TO NUMBEROUS MOBILE/STATIONARY
+/* NODES ON THE NETWORK. THIS CODE ALLOWS FOR VARIOUS PLACEMENT MODELS, MOBILITY MODELS
+/* AS WELL AS TRAFFIC PATTERNS.
+/*
+/* THE NODE REPLIES ON A MODIEFIED rtt-estimator.cc/h AS WELL AS tcp-socket-base.cc/H
+/* TO PROVIDE TRACING OF DELTA AND REAL RTT VALUES.
+ *****************************************************************************************/
 
 #include <string>
 #include <iostream>
@@ -52,6 +60,7 @@ uint32_t ssThreshValue;
 
 /*****************************************************************************/
 /* TRACE PATHS                                                               */
+/* THE ASTERICKS ARE USED IN THE PATH AS WILDCARD TO TRACE ALL NODES/SOCKETS */
 /*****************************************************************************/
 
 std::string CwndPath("/NodeList/*/$ns3::TcpL4Protocol/SocketList/*/CongestionWindow");
@@ -63,9 +72,11 @@ std::string RttVarPath("/NodeList/*/$ns3::TcpL4Protocol/SocketList/*/RTTvar");
 std::string DeltaPath("/NodeList/*/$ns3::TcpL4Protocol/SocketList/*/Delta");
 
 
-/*****************************************************************************/
-/*CALLBACK FUNCTIONS FOR TRACES                                               */
-/*****************************************************************************/
+/********************************************************************************/
+/*CALLBACK FUNCTIONS FOR TRACES                                                 */
+/*MOST TRACE FUNCTION WERE FROM OTHER NS3 EXAMPLE                               */
+/*ADDED TRACERS ARE DELTA AND REAL RTT AS WELL AS MODIFIED RttTracer FOR nodeID */
+/*******************************************************************************/
 static void
 CwndTracer (uint32_t oldval, uint32_t newval)
 {
@@ -132,9 +143,6 @@ RttVarTracer (Time oldval, Time newval)
   *rttvarStream->GetStream () << Simulator::Now ().GetSeconds () << " " << newval.GetSeconds () << std::endl;
 }
 
-
-
-
 static void
 RealRttTracer (Time oldval, Time newval)
 {
@@ -157,10 +165,6 @@ DeltaTracer (Time oldval, Time newval)
     }
   *deltaStream->GetStream () << Simulator::Now ().GetSeconds () << " " << newval.GetSeconds () << std::endl;
 }
-
-
-
-/*****************************************************************************/
 
 /*****************************************************************************/
 /*SETTING UP FILES FOR STORING TRACE VALUES                                  */
@@ -217,8 +221,6 @@ TraceDelta (std::string delta_tr_file_name)
   deltaStream = ascii.CreateFileStream (delta_tr_file_name.c_str ());
   Config::ConnectWithoutContext (DeltaPath, MakeCallback (&DeltaTracer));
 }
-
-
 void
 PhyTxTrace (std::string context, Ptr<const Packet> packet, WifiMode mode, WifiPreamble preamble, uint8_t txPower)
 {
@@ -229,27 +231,24 @@ PhyTxTrace (std::string context, Ptr<const Packet> packet, WifiMode mode, WifiPr
 int
 main (int argc, char *argv[])
 {
-  uint32_t maxBytes = 300; //megaBytes
-  double SimTime = 10.0;
-  std::string transport_prot = "TcpWestwood";
-  //NS_LOG_INFO ("error probabiltiy 0.0");
-  double error_p = 0.0;
+  uint32_t run = 0;                 // RUN INDEXT FOR REPEATABLE SEED
+  uint32_t seed = 1;                // SEED FOR REPEATABILITY
+  uint32_t maxBytes = 300;          // MAX NUMBER OF BYTES TRANSMITTED PER NODE IN MEGABYTES
+                                    // USED IN CONSTANT TRAFFIC AND INCREASING TRAFFIC MODEL
 
-  uint32_t run = 0;
-  uint32_t seed = 1;
-  double range = 250;
-  /*defines the interval in with additional nodes can start transmitting*/
-  /*DEFUALT 2 Seconds*/
-  double delay_start_interval = 2.0;
-  /*defines number of nodes to to be added to transmitting set every interval*/
-  /*DEFUALT 3nodes*/
-  uint16_t num_add_trans_node = 3;
-  /*the number for flows*/
-  uint16_t num_flows = 1;
 
-  std::string mobility_model = "RandomWalk";
-  std::string placement = "Grid";
-  std::string traffic_pattern = "Increasing";
+  double SimTime = 10.0;            // IN SECONDS
+  double error_p = 0.0;             // FOR ADDING ERROR PROPABILITY
+  double range = 250;               // RANGE FOR TRANSMISSION CUTOFF
+  double delay_start_interval = 2.0;// DELAY INTERVAL FOR INCREASING TRAFFIC MODEL FOR ADDING FLOWS
+
+  uint16_t num_add_trans_node = 3;  // NUMBER OF NODES/FLOWS TO BE ADDED PER INTERVAL FOR INCREASING TRAFFIC MODEL
+  uint16_t num_flows = 1;           // NUMBER OF FLOWS IN THE SIMULATION
+
+  std::string transport_prot = "TcpWestwood";   // TCP VARIANT
+  std::string mobility_model = "RandomWalk";    // MOBILITY MODEL
+  std::string placement = "Grid";               // NODE PLACEMENT MODEL
+  std::string traffic_pattern = "Increasing";   // TRAFFIC PATTERN MODEL
 
   /*LOG COMPONENTS*/
   LogComponentEnable("WirelessRtt", LOG_LEVEL_INFO);
@@ -257,6 +256,8 @@ main (int argc, char *argv[])
   //  LogComponentEnable ("BulkSendApplication", LOG_LEVEL_INFO);
   //  LogComponentEnable ("TcpSocketBase", LOG_LEVEL_LOGIC);
 
+
+  /*TRACE FILE NAMES*/
   std::string traceFile = "wireless.ns_movements";
   std::string tr_file_name = "";
   std::string cwnd_tr_file_name = "";
@@ -269,7 +270,7 @@ main (int argc, char *argv[])
   std::string delta_tr_file_name = "wireless.delta";
 
 
-
+  /*COMMAND PROMPT: DISPLAY FOR --help AND TAKES IN ARGS TO MODIFY PARAMETERS*/
   CommandLine cmd;
   cmd.AddValue ("transport_prot", "Transport protocol to use: TcpTahoe, TcpReno, TcpNewReno, TcpWestwood, TcpWestwoodPlus ", transport_prot);
   cmd.AddValue ("MBytes", "maximum number of megabytes during the transfer ", maxBytes);
@@ -294,10 +295,9 @@ main (int argc, char *argv[])
   cmd.AddValue ("mobility_model", "Mobility Mode (RandomWalk|ConstantPosition|RandomWaypoint) Default:", mobility_model);
   cmd.AddValue ("placement", "Node Placement Model (Grid|UniformDisc) Default:", placement);
   cmd.AddValue ("traffic_pattern", "Traffic Patter (Constant| Increasing| Burst) Default:", traffic_pattern);
-
   cmd.Parse (argc, argv);
 
-
+  /*SET RUN SEEDS FOR REPEATABILITY*/
   SeedManager::SetSeed (seed);
   SeedManager::SetRun (run);
 
@@ -337,9 +337,7 @@ main (int argc, char *argv[])
 
 
 
-//
-// Explicitly create the nodes required by the topology (shown above).
-//
+  /*CREATE NODES - WIFI AP AND STATIONS*/
   NS_LOG_INFO ("Create nodes.");
   NodeContainer stas, ap;
   ap.Create(1);
@@ -347,7 +345,7 @@ main (int argc, char *argv[])
   stas.Create(num_flows);
 
 
-
+  /*DISIPLAY SIMULATION PARAMETERS*/
   NS_LOG_INFO ("Total Number of Nodes After Adding Wifi Stations: " << NodeList::GetNNodes());
   NS_LOG_INFO ("Total Number Flows: " << num_flows);
   if (num_flows > num_add_trans_node) {
@@ -356,7 +354,6 @@ main (int argc, char *argv[])
     NS_LOG_INFO ("upto to  " << num_add_trans_node << "additional flows will start at " << delay_start_interval << " second(s) intervals");
   }
   NS_LOG_INFO ("===================================================================");
-
   NS_LOG_INFO ("TCP Flavor: " << transport_prot);
   NS_LOG_INFO ("Simulation Duration: " << SimTime);
   NS_LOG_INFO ("Configuring error model. Error Probability: " << error_p);
@@ -365,8 +362,7 @@ main (int argc, char *argv[])
   NS_LOG_INFO ("Node Placement Model: " << placement);
   NS_LOG_INFO ("===================================================================");
 
-  // Configure the error model
-  // Here we use RateErrorModel with packet error rate
+  /*CONFIGURE PACKET ERROR RATE*/
   Ptr<UniformRandomVariable> uv = CreateObject<UniformRandomVariable> ();
   uv->SetStream (50);
   RateErrorModel error_model;
@@ -376,33 +372,35 @@ main (int argc, char *argv[])
 
 
 
-  //
-  // Explicitly create the point-to-point link required by the topology (shown above).
+  /*CONFIGURE L1/2*/
   NS_LOG_INFO ("Create channels.");
-  // Wifi Channel
+  /* Wifi Channel*/
   YansWifiChannelHelper wifiChannelHelper = YansWifiChannelHelper::Default ();
   Ptr<YansWifiChannel> wifiChannel = wifiChannelHelper.Create ();
 
-  // Physical Layer
+  /* Physical Layer*/
   YansWifiPhyHelper wifiPhyHelper = YansWifiPhyHelper::Default ();
   wifiPhyHelper.SetChannel(wifiChannel);
 
 
-  // Mac Layer
+  /* Mac Layer*/
   NqosWifiMacHelper wifiMacHelper = NqosWifiMacHelper::Default ();
   Ssid ssid = Ssid ("ns-3-ssid");
 
+  /*PROPAGATION DELAY MODEL*/
   NS_LOG_INFO ("Propataion Delay Model: Random Propagation Delay Model");
   wifiChannelHelper.SetPropagationDelay ("ns3::RandomPropagationDelayModel");
 
   /*CUT OFF RANGE*/
   NS_LOG_INFO ("Propagation range: " << range);
+  /*PROPAGATION LOSS MODEL*/
   wifiChannelHelper.AddPropagationLoss ("ns3::RangePropagationLossModel", "MaxRange", DoubleValue(range));
   //MORE MODELS AT https://www.nsnam.org/docs/release/3.15/doxygen/group__propagation.html
   NS_LOG_INFO ("===================================================================");
 
 
-  // Install the phy, mac on the station node
+  /*INSTALL L1/L2 ON NODES*/
+  /*INSTALL ON MOBILE STATION*/
   wifiMacHelper.SetType ("ns3::StaWifiMac",
                         "Ssid", SsidValue (ssid),
                         "ActiveProbing", BooleanValue (false));
@@ -410,37 +408,29 @@ main (int argc, char *argv[])
   wifiHelper.SetStandard(WIFI_PHY_STANDARD_80211a);
   wifiHelper.SetRemoteStationManager ("ns3::ConstantRateWifiManager",
                                 "DataMode", StringValue ("OfdmRate54Mbps"));
-  //wifiHelper.SetRemoteStationManager("ns3::MinstrelWifiManager");
-
   NetDeviceContainer wifiContainer = wifiHelper.Install(wifiPhyHelper, wifiMacHelper, stas);
 
 
-  // Install the phy, mac on the ap node
+  /*INSTALL ON WIRELESS AP*/
   wifiMacHelper.SetType ("ns3::ApWifiMac",
                        "Ssid", SsidValue (ssid));
   wifiHelper.SetStandard(WIFI_PHY_STANDARD_80211a);
   wifiHelper.SetRemoteStationManager ("ns3::ConstantRateWifiManager",
                                 "DataMode", StringValue ("OfdmRate54Mbps"));
-  //wifiHelper.SetRemoteStationManager("ns3::MinstrelWifiManager");
-
   NetDeviceContainer apContainer = wifiHelper.Install(wifiPhyHelper, wifiMacHelper, ap);
 
 
 
   NS_LOG_INFO ("Install Internet Stack.");
 
-  //
-  // Install the internet stack on the nodes
-  //
+  /*INSTALL INTERNET STACK*/
   InternetStackHelper internet;
   internet.Install (stas);
   internet.Install (ap);
 
 
 
-  //
-  // We've got the "hardware" in place.  Now we need to add IP addresses.
-  //
+  /*ASSIGN IP*/
   NS_LOG_INFO ("Assign IP Addresses.");
   Ipv4AddressHelper ipv4;
   ipv4.SetBase ("10.1.1.0", "255.255.255.0");
@@ -449,24 +439,22 @@ main (int argc, char *argv[])
 
 
 
-  // mobility.
+  /*CONFIGURE MOBILITY MODEL*/
   MobilityHelper mobility;
   Ptr<ListPositionAllocator> positionAlloc = CreateObject<ListPositionAllocator> ();
-  //X,Y,Z
+  /*LOCATION FOR STATIONARY AP X , Y, Z -AXIS*/
   positionAlloc->Add (Vector (50.0, 50.0, 0.0));
-
-
   mobility.SetPositionAllocator (positionAlloc);
-
+  /*CONSTANT POSITION*/
   mobility.SetMobilityModel ("ns3::ConstantPositionMobilityModel");
-
   mobility.Install (ap);
 
 
-
+  /*MOBILITY FOR ALL OTHER NODES*/
   if (placement.compare ("Grid") == 0)
   {
-  mobility.SetPositionAllocator ("ns3::GridPositionAllocator",
+    /*GRID PLACEMENT, NODES ARE PLACE SPAVED OUT ON A GRID WITH FOLLOWING PARAMETERS*/
+    mobility.SetPositionAllocator ("ns3::GridPositionAllocator",
                                   "MinX", DoubleValue (35.0),
                                   "MinY", DoubleValue (40.0),
                                   "DeltaX", DoubleValue (5.0),
@@ -475,12 +463,14 @@ main (int argc, char *argv[])
                                   "LayoutType", StringValue ("RowFirst"));
  }else if (placement.compare ("UniformDisc") == 0)
  {
+   /*UNIFORM DISK, NODES ARE SCATTERED UNIFORMLY IN THIS RADIUS AROUND THE SPECIFIED AXIS*/
    double radius = 20.0;
    mobility.SetPositionAllocator ("ns3::UniformDiscPositionAllocator",
                                        "X", DoubleValue (50.0),
                                        "Y", DoubleValue (50.0),
                                        "rho", DoubleValue (radius));
   }
+  /*OTHER PLACEMENT MODELS*/
   // ListPositionAllocator, RandomRectanglePositionAllocator, RandomDiscPositionAllocator Can also be implemented
 
 
@@ -501,10 +491,11 @@ main (int argc, char *argv[])
                                 );
   } else if (mobility_model.compare ("ConstantPosition") == 0)
   {
+    /*STATIONARY*/
     mobility.SetMobilityModel ("ns3::ConstantPosition");
   } else if (mobility_model.compare ("RandomWaypoint") == 0)
   {
-
+    /*RANDOM WAY POINT*/
     ObjectFactory position;
     position.SetTypeId ("ns3::RandomRectanglePositionAllocator");
     position.Set ("X", StringValue ("ns3::UniformRandomVariable[Min=0.0|Max=250.0]"));
@@ -521,6 +512,7 @@ main (int argc, char *argv[])
                            );
   }
 
+  /*INSTALL CONFIGURED MOBILITY TO MOBILE NODES*/
   mobility.Install (stas);
 
 
@@ -528,15 +520,11 @@ main (int argc, char *argv[])
 
 
   NS_LOG_INFO ("Create Applications.");
-
-  //
-  // Create a BulkSendApplication
-  //
   uint16_t port = 9;  // well-known echo port number
 
   ApplicationContainer sourceApps;
 
-
+  /*BURST MODE CONFIGURATIONS*/
   if (traffic_pattern.compare ("Burst") == 0)
   {
     NS_LOG_INFO ("Traffic Pattern: Burst" );
@@ -544,9 +532,9 @@ main (int argc, char *argv[])
     OnOffHelper source ("ns3::TcpSocketFactory", InetSocketAddress (i.GetAddress (0), port));
     source.SetAttribute ("OnTime", StringValue ("ns3::ConstantRandomVariable[Constant=1]"));
     //source.SetAttribute ("OffTime", RandomVariableValue (ConstantVariable (0)));
-
     source.SetAttribute ("OffTime", StringValue ("ns3::ConstantRandomVariable[Constant=1]"));
 
+    /*INSTALL ON MOBILE STATION*/
     for (int i = 0; i < num_flows; i++)
       {
         sourceApps = source.Install (stas.Get (i));
@@ -556,6 +544,7 @@ main (int argc, char *argv[])
 
   } else
   {
+     /*BULK SEND APPLICATION*/
       /*NAME OF PROTOCOL, DESTINATION ADDRESS*/
       BulkSendHelper source ("ns3::TcpSocketFactory",
                              InetSocketAddress (i.GetAddress (0), port));
@@ -564,11 +553,9 @@ main (int argc, char *argv[])
       source.SetAttribute ("MaxBytes", UintegerValue (int(maxBytes* 1000000)));
 
 
-    // MOBILE NODE(S) AS SOURCE(S)
-
-
     if (traffic_pattern.compare ("Constant") ==  0)
     {
+      /*CONSTANT TRANSMISSION*/
       NS_LOG_INFO ("Traffic Pattern: Constant");
       for (int i = 0; i < num_flows; i++)
         {
@@ -579,6 +566,7 @@ main (int argc, char *argv[])
     }
     else if (traffic_pattern.compare ("Increasing") ==  0)
     {
+      /*INCREASING FLOWS OVERTIME*/
       NS_LOG_INFO ("Traffic Pattern: Increasing");
       int j = 0;
       for (int i = 0; i < num_flows; i++)
@@ -592,18 +580,9 @@ main (int argc, char *argv[])
   }
 
 
-
-  //
-  // Create a PacketSinkApplication and install it on node 1
-
-
-
-  // STATIONARY AP AS SINK
+  /*INSTALL SINK APPLICATION ON STATIONARY AP*/
   PacketSinkHelper sink ("ns3::TcpSocketFactory",
                          InetSocketAddress (Ipv4Address::GetAny (), port));
-
-
-
   ApplicationContainer sinkApps = sink.Install (ap.Get (0));
   sinkApps.Start (Seconds (0.0));
   sinkApps.Stop (Seconds (SimTime));
@@ -645,7 +624,7 @@ main (int argc, char *argv[])
 /********************************************************************************/
 /*HOOKS FOR STARTING TRACES *****************************************************/
 /********************************************************************************/
-double trace_start=0.5;
+double trace_start=0.5; //MUST BE SUFFICIENTLY LARGE ENOUGH FOR ALL SOCKETS TO BE CREATED TO TRACE CORRECTLY
 if (tr_file_name.compare ("") != 0)
   {
     std::ofstream ascii;
@@ -698,7 +677,7 @@ if (delta_tr_file_name.compare ("") != 0)
   Simulator::Destroy ();
   NS_LOG_INFO ("Done.");
 
-
+  //PRINTS OUT THROUGHPUT INFO OF FIRST SINK
   std::cout << "Total Bytes Received: " << sink1->GetTotalRx () << std::endl;
   std::cout << "Total Throughput: " << (sink1->GetTotalRx ()*8)/(1000000*SimTime) << " Mbps" << std::endl;
 }

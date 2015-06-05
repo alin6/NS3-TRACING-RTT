@@ -247,6 +247,10 @@ main (int argc, char *argv[])
   /*the number for flows*/
   uint16_t num_flows = 1;
 
+  std::string mobility_model = "RandomWalk";
+  std::string placement = "Grid";
+  std::string traffic_pattern = "Increasing";
+
   /*LOG COMPONENTS*/
   LogComponentEnable("WirelessRtt", LOG_LEVEL_INFO);
   //  LogComponentEnable("ConstantRateWifiManager", LOG_LEVEL_INFO);
@@ -268,7 +272,7 @@ main (int argc, char *argv[])
 
   CommandLine cmd;
   cmd.AddValue ("transport_prot", "Transport protocol to use: TcpTahoe, TcpReno, TcpNewReno, TcpWestwood, TcpWestwoodPlus ", transport_prot);
-  cmd.AddValue ("MBytes", "maximum number of megabytes during the transfer[3000]", maxBytes);
+  cmd.AddValue ("MBytes", "maximum number of megabytes during the transfer ", maxBytes);
   cmd.AddValue ("error_p", "Packet error rate", error_p);
   cmd.AddValue ("seed", "set seed repeatable runs", seed);
   cmd.AddValue ("run", "Run index (for setting repeatable seeds)", run);
@@ -287,6 +291,9 @@ main (int argc, char *argv[])
   cmd.AddValue ("delay_start_interval", "Delay in seconds Interval between starting transmissions between groups of nodes", delay_start_interval);
   cmd.AddValue ("num_add_trans_node", "Number of flows to be started at every interval", num_add_trans_node);
   cmd.AddValue ("anim_meta", "Enabe/Disable netanim packet metadata", anim_meta);
+  cmd.AddValue ("mobility_model", "Mobility Mode (RandomWalk|ConstantPosition|RandomWaypoint) Default:", mobility_model);
+  cmd.AddValue ("placement", "Node Placement Model (Grid|UniformDisc) Default:", placement);
+  cmd.AddValue ("traffic_pattern", "Traffic Patter (Constant| Increasing| Burst) Default:", traffic_pattern);
 
   cmd.Parse (argc, argv);
 
@@ -338,6 +345,9 @@ main (int argc, char *argv[])
   ap.Create(1);
   NS_LOG_INFO ("Number of Nodes After AP: " << NodeList::GetNNodes());
   stas.Create(num_flows);
+
+
+
   NS_LOG_INFO ("Total Number of Nodes After Adding Wifi Stations: " << NodeList::GetNNodes());
   NS_LOG_INFO ("Total Number Flows: " << num_flows);
   if (num_flows > num_add_trans_node) {
@@ -347,13 +357,13 @@ main (int argc, char *argv[])
   }
   NS_LOG_INFO ("===================================================================");
 
-
-
   NS_LOG_INFO ("TCP Flavor: " << transport_prot);
   NS_LOG_INFO ("Simulation Duration: " << SimTime);
   NS_LOG_INFO ("Configuring error model. Error Probability: " << error_p);
   NS_LOG_INFO ("===================================================================");
-
+  NS_LOG_INFO ("Mobility Model: " << mobility_model);
+  NS_LOG_INFO ("Node Placement Model: " << placement);
+  NS_LOG_INFO ("===================================================================");
 
   // Configure the error model
   // Here we use RateErrorModel with packet error rate
@@ -377,17 +387,29 @@ main (int argc, char *argv[])
   YansWifiPhyHelper wifiPhyHelper = YansWifiPhyHelper::Default ();
   wifiPhyHelper.SetChannel(wifiChannel);
 
+
+
+    // FOR AODV
+    /*
+    NqosWifiMacHelper wifiMacHelper = NqosWifiMacHelper::Default ();
+    wifiMacHelper.SetType ("ns3::AdhocWifiMac");
+
+
+    */
+
+
+
   // Mac Layer
   NqosWifiMacHelper wifiMacHelper = NqosWifiMacHelper::Default ();
   Ssid ssid = Ssid ("ns-3-ssid");
 
+  NS_LOG_INFO ("Propataion Delay Model: Random Propagation Delay Model");
+  wifiChannelHelper.SetPropagationDelay ("ns3::RandomPropagationDelayModel");
 
-  NS_LOG_INFO ("Propataion Delay Model: Constant Speed Propagation");
-  wifiChannelHelper.SetPropagationDelay ("ns3::ConstantSpeedPropagationDelayModel");
   /*CUT OFF RANGE*/
   NS_LOG_INFO ("Propagation range: " << range);
   wifiChannelHelper.AddPropagationLoss ("ns3::RangePropagationLossModel", "MaxRange", DoubleValue(range));
-
+  //MORE MODELS AT https://www.nsnam.org/docs/release/3.15/doxygen/group__propagation.html
   NS_LOG_INFO ("===================================================================");
 
 
@@ -436,37 +458,79 @@ main (int argc, char *argv[])
   Ipv4InterfaceContainer i = ipv4.Assign (apContainer);
   Ipv4InterfaceContainer i1 = ipv4.Assign (wifiContainer);
 
-  /*Configure mobility -  DEBUGGING
-  //  Ns2MobilityHelper mobility(traceFile);
-  //  mobility.Install();
-  */
+
 
   // mobility.
   MobilityHelper mobility;
   Ptr<ListPositionAllocator> positionAlloc = CreateObject<ListPositionAllocator> ();
-  positionAlloc->Add (Vector (0.0, 0.0, 0.0));
-  //positionAlloc->Add (Vector (1.0, 0.0, 80.0));
+  //X,Y,Z
+  positionAlloc->Add (Vector (50.0, 50.0, 0.0));
+
+
   mobility.SetPositionAllocator (positionAlloc);
 
   mobility.SetMobilityModel ("ns3::ConstantPositionMobilityModel");
 
   mobility.Install (ap);
 
+
+
+  if (placement.compare ("Grid") == 0)
+  {
   mobility.SetPositionAllocator ("ns3::GridPositionAllocator",
-                                  "MinX", DoubleValue (10.0),
-                                  "MinY", DoubleValue (10.0),
+                                  "MinX", DoubleValue (35.0),
+                                  "MinY", DoubleValue (40.0),
                                   "DeltaX", DoubleValue (5.0),
-                                  "DeltaY", DoubleValue (2.0),
+                                  "DeltaY", DoubleValue (10.0),
                                   "GridWidth", UintegerValue (5),
                                   "LayoutType", StringValue ("RowFirst"));
-  /*SET MOBILITY MODEL*/
-  mobility.SetMobilityModel ("ns3::RandomWalk2dMobilityModel",
-                              /*DECLARE DISTNACE OR TIME MODE*/
-                              "Mode", StringValue ("Time"),
-                              /*DEFINE TIME DURATION BEFORE CHANGE IN SPEED AND DIRECTION*/
-                              "Time", StringValue ("2s"),
-                              "Bounds", RectangleValue (Rectangle (-50, 50, -25, 50)));
+ }else if (placement.compare ("UniformDisc") == 0)
+ {
+   double radius = 20.0;
+   mobility.SetPositionAllocator ("ns3::UniformDiscPositionAllocator",
+                                       "X", DoubleValue (50.0),
+                                       "Y", DoubleValue (50.0),
+                                       "rho", DoubleValue (radius));
+  }
+  // ListPositionAllocator, RandomRectanglePositionAllocator, RandomDiscPositionAllocator Can also be implemented
 
+
+
+  /*SET MOBILITY MODEL*/
+  /*MORE https://www.nsnam.org/docs/models/html/mobility.html*/
+  if (mobility_model.compare ("RandomWalk") == 0)
+  {
+    mobility.SetMobilityModel ("ns3::RandomWalk2dMobilityModel",
+                                /*DECLARE DISTNACE OR TIME MODE*/
+                                "Mode", StringValue ("Time"),
+                                /*DEFINE TIME DURATION BEFORE CHANGE IN SPEED AND DIRECTION*/
+                                "Time", StringValue ("2s"),
+                                //https://www.nsnam.org/doxygen/classns3_1_1_constant_random_variable.html#details
+                                "Speed", StringValue ("ns3::ConstantRandomVariable[Constant=1.0]")
+                                /*TO ASSIGN MOVEMENT BOUNDS*/
+                                //,"Bounds", RectangleValue (Rectangle (-50, 50, -25, 50))
+                                );
+  } else if (mobility_model.compare ("ConstantPosition") == 0)
+  {
+    mobility.SetMobilityModel ("ns3::ConstantPosition");
+  } else if (mobility_model.compare ("RandomWaypoint") == 0)
+  {
+
+    ObjectFactory position;
+    position.SetTypeId ("ns3::RandomRectanglePositionAllocator");
+    position.Set ("X", StringValue ("ns3::UniformRandomVariable[Min=0.0|Max=250.0]"));
+    position.Set ("Y", StringValue ("ns3::UniformRandomVariable[Min=0.0|Max=250.0]"));
+    Ptr<PositionAllocator> PositionAlloc = position.Create ()->GetObject<PositionAllocator> ();
+
+    mobility.SetMobilityModel ("ns3::RandomWaypointMobilityModel",
+                            //GENERATE RANDSOME SPEED
+                           "Speed", StringValue ("ns3::UniformRandomVariable[Min=0.0|Max=20.0]"),
+                           //GENERATE RANDOM PAUSES
+                           //MORE REPEATABLE SEED[Constant=2.0]
+                           "Pause", StringValue ("ns3::UniformRandomVariable[Min=0.0|Max=3.0]"),
+                           "PositionAllocator", PointerValue (PositionAlloc)
+                           );
+  }
 
   mobility.Install (stas);
 
@@ -481,26 +545,63 @@ main (int argc, char *argv[])
   //
   uint16_t port = 9;  // well-known echo port number
 
-  /*NAME OF PROTOCOL, DESTINATION ADDRESS*/
-  BulkSendHelper source ("ns3::TcpSocketFactory",
-                         InetSocketAddress (i.GetAddress (0), port));
-  //source.SetAttribute("SendSize", UintegerValue (1500));
-  // Set the amount of data to send in bytes.  Zero is unlimited.
-  source.SetAttribute ("MaxBytes", UintegerValue (int(maxBytes* 1000000)));
-
-
-  // MOBILE NODE(S) AS SOURCE(S)
-
   ApplicationContainer sourceApps;
 
-  int j = 0;
-  for (int i = 0; i < num_flows; i++)
+
+  if (traffic_pattern.compare ("Burst") == 0)
+  {
+    NS_LOG_INFO ("Traffic Pattern: Burst" );
+    // Create the OnOff applications to send TCP
+    OnOffHelper source ("ns3::TcpSocketFactory", InetSocketAddress (i.GetAddress (0), port));
+    source.SetAttribute ("OnTime", StringValue ("ns3::ConstantRandomVariable[Constant=1]"));
+    //source.SetAttribute ("OffTime", RandomVariableValue (ConstantVariable (0)));
+
+    source.SetAttribute ("OffTime", StringValue ("ns3::ConstantRandomVariable[Constant=1]"));
+
+    for (int i = 0; i < num_flows; i++)
+      {
+        sourceApps = source.Install (stas.Get (i));
+        sourceApps.Start (Seconds (0.1));
+        sourceApps.Stop (Seconds (SimTime));
+      }
+
+  } else
+  {
+      /*NAME OF PROTOCOL, DESTINATION ADDRESS*/
+      BulkSendHelper source ("ns3::TcpSocketFactory",
+                             InetSocketAddress (i.GetAddress (0), port));
+      //source.SetAttribute("SendSize", UintegerValue (1500));
+      // Set the amount of data to send in bytes.  Zero is unlimited.
+      source.SetAttribute ("MaxBytes", UintegerValue (int(maxBytes* 1000000)));
+
+
+    // MOBILE NODE(S) AS SOURCE(S)
+
+
+    if (traffic_pattern.compare ("Constant") ==  0)
     {
-      if (i % num_add_trans_node == 2)  j++ ;
-      sourceApps = source.Install (stas.Get (i));
-      sourceApps.Start (Seconds (0.0 + (j*delay_start_interval)));
-      sourceApps.Stop (Seconds (SimTime));
+      NS_LOG_INFO ("Traffic Pattern: Constant");
+      for (int i = 0; i < num_flows; i++)
+        {
+          sourceApps = source.Install (stas.Get (i));
+          sourceApps.Start (Seconds (0.1));
+          sourceApps.Stop (Seconds (SimTime));
+        }
     }
+    else if (traffic_pattern.compare ("Increasing") ==  0)
+    {
+      NS_LOG_INFO ("Traffic Pattern: Increasing");
+      int j = 0;
+      for (int i = 0; i < num_flows; i++)
+        {
+          if (i % num_add_trans_node == 2)  j++ ;
+          sourceApps = source.Install (stas.Get (i));
+          sourceApps.Start (Seconds (0.0 + (j*delay_start_interval)));
+          sourceApps.Stop (Seconds (SimTime));
+        }
+    }
+  }
+
 
 
   //
@@ -534,9 +635,6 @@ main (int argc, char *argv[])
   // Setting up Animation Interface nicely
 
     AnimationInterface anim ("wireless_rtt.xml");
-    /*NODE ID, X-axis, Y-axis, (Z-axis)*/
-    anim.SetConstantPosition (ap.Get (0), 25.0, 25.0);
-    //anim.SetConstantPosition (stas.Get (0), 0.0, 25.0);
     /*Assign Label for access point*/
     anim.UpdateNodeDescription (ap.Get (0), "wireless access point");
     /*base station color*/

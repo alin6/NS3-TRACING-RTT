@@ -98,6 +98,8 @@ public:
    */
   uint32_t GetNSamples (void) const;
 
+
+  /********ADDED ************************************************/
   /**
    * \Returns actual RTT measurements.
    */
@@ -110,6 +112,10 @@ public:
    */
 
   Time CurrentDelta(void) const;
+  /**
+   * \Returns fixedshare estimate.
+   */
+  Time FixedShareEstimate(void) const;
 
 
 private:
@@ -121,9 +127,30 @@ protected:
   uint32_t     m_nSamples;                //!< Number of samples
 
 
-    /**Added ****************************************************/
-    Time         m_SampledRTT;   //!< Current estimate variation
-    Time         m_CurrentDelta;   //!< Current estimate variation
+  /**Added ****************************************************/
+  Time         m_SampledRTT;   //!< Current estimate variation
+  Time         m_CurrentDelta;   //!< Current estimate variation
+
+  /**FIXED_EXPERT - 100**********************************************/
+  int64_t     expertPrediction[100];
+  int64_t     m_sum_prediction; // used for predication calcuation, sum of weighted predication
+  Time        m_prediction;   // prediction for this round
+  double      m_sum_weight; // sum of weightm_rtts
+  double      m_pool;
+  double      m_range_min;   // min of expected rtt
+  double      m_range_max;   // max of expected rtt
+  double      m_weights[100];
+  double      m_loss[100];
+  double      m_expert_penalty;
+  double      m_ETA; //USER DEFINED LEARNING RATE, LOW->SLOW CONVERGENCE, HIGH->EXPERT WIGHT REACH 0 QUICKLY
+  double      m_share;
+  int         num_Experts;
+
+
+
+  /**SENSE**************************************************
+  float       m_sense_alpha[9];
+  */
 
 };
 

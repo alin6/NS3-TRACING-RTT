@@ -40,6 +40,7 @@ bool firstRttVar = true;
 bool firstRealRtt = true;
 bool firstDelta = true;
 bool anim_meta = true;
+bool firstFixed = true;
 
 
 /*****************************************************************************/
@@ -53,6 +54,7 @@ Ptr<OutputStreamWrapper> rtoStream;
 Ptr<OutputStreamWrapper> rttvarStream;
 Ptr<OutputStreamWrapper> rrttStream;
 Ptr<OutputStreamWrapper> deltaStream;
+Ptr<OutputStreamWrapper> fixedStream;
 
 uint32_t cWndValue;
 uint32_t ssThreshValue;
@@ -70,6 +72,8 @@ std::string estRttPath("/NodeList/*/$ns3::TcpL4Protocol/SocketList/*/RTT");
 std::string RtoPath("/NodeList/*/$ns3::TcpL4Protocol/SocketList/*/RTO");
 std::string RttVarPath("/NodeList/*/$ns3::TcpL4Protocol/SocketList/*/RTTvar");
 std::string DeltaPath("/NodeList/*/$ns3::TcpL4Protocol/SocketList/*/Delta");
+/***FIXED SHARE ESTIMATE****************************************************************/
+std::string FixedSharePath("/NodeList/*/$ns3::TcpL4Protocol/SocketList/*/FixedShare");
 
 
 /********************************************************************************/
@@ -166,6 +170,19 @@ DeltaTracer (Time oldval, Time newval)
   *deltaStream->GetStream () << Simulator::Now ().GetSeconds () << " " << newval.GetSeconds () << std::endl;
 }
 
+
+/***FIXED SHARE ESTIMATE****************************************************************/
+static void
+FixedShareTracer (Time oldval, Time newval)
+{
+  if (firstFixed)
+    {
+      *fixedStream->GetStream () <<  "0.0 " << oldval.GetSeconds () << std::endl;
+      firstFixed = false;
+    }
+  *fixedStream->GetStream () << Simulator::Now ().GetSeconds () << " " << newval.GetSeconds () << std::endl;
+}
+
 /*****************************************************************************/
 /*SETTING UP FILES FOR STORING TRACE VALUES                                  */
 /*****************************************************************************/
@@ -226,7 +243,14 @@ PhyTxTrace (std::string context, Ptr<const Packet> packet, WifiMode mode, WifiPr
 {
       std::cout << "PHYTX mode=" << mode << " " << *packet << std::endl;
 }
-
+/***FIXED SHARE ESTIMATE****************************************************************/
+static void
+TraceFixedShare (std::string fixed_tr_file_name)
+{
+  AsciiTraceHelper ascii;
+  fixedStream = ascii.CreateFileStream (fixed_tr_file_name.c_str ());
+  Config::ConnectWithoutContext (FixedSharePath, MakeCallback (&FixedShareTracer));
+}
 
 int
 main (int argc, char *argv[])
@@ -252,6 +276,7 @@ main (int argc, char *argv[])
 
   /*LOG COMPONENTS*/
   LogComponentEnable("WirelessRtt", LOG_LEVEL_INFO);
+  //  LogComponentEnable("RttEstimator", LOG_LEVEL_INFO);
   //  LogComponentEnable("ConstantRateWifiManager", LOG_LEVEL_INFO);
   //  LogComponentEnable ("BulkSendApplication", LOG_LEVEL_INFO);
   //  LogComponentEnable ("TcpSocketBase", LOG_LEVEL_LOGIC);
@@ -268,6 +293,7 @@ main (int argc, char *argv[])
   std::string rttvar_tr_file_name = "";
   std::string rrtt_tr_file_name = "wireless.rrtt";
   std::string delta_tr_file_name = "wireless.delta";
+  std::string fixed_tr_file_name = "wireless.fixedEst";
 
 
   /*COMMAND PROMPT: DISPLAY FOR --help AND TAKES IN ARGS TO MODIFY PARAMETERS*/
@@ -295,6 +321,7 @@ main (int argc, char *argv[])
   cmd.AddValue ("mobility_model", "Mobility Mode (RandomWalk|ConstantPosition|RandomWaypoint) Default:", mobility_model);
   cmd.AddValue ("placement", "Node Placement Model (Grid|UniformDisc) Default:", placement);
   cmd.AddValue ("traffic_pattern", "Traffic Patter (Constant| Increasing| Burst) Default:", traffic_pattern);
+  cmd.AddValue ("fixed_tr_name", "Name of output trace file for Fixed Share Estimate: ", fixed_tr_file_name);
   cmd.Parse (argc, argv);
 
   /*SET RUN SEEDS FOR REPEATABILITY*/
@@ -669,7 +696,11 @@ if (delta_tr_file_name.compare ("") != 0)
   {
     Simulator::Schedule (Seconds (trace_start), &TraceDelta, delta_tr_file_name);
   }
-
+  /*****Fixed Share*********************************************************/
+if (delta_tr_file_name.compare ("") != 0)
+  {
+    Simulator::Schedule (Seconds (trace_start), &TraceFixedShare, fixed_tr_file_name);
+  }
 
   NS_LOG_INFO ("Run Simulation.");
   Simulator::Stop (Seconds (SimTime));

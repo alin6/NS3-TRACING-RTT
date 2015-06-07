@@ -55,7 +55,9 @@
 #include <math.h>
 #include <algorithm>
 
+
 uint32_t  m_nodeID; //<! global variable to track traced node's ID
+
 
 namespace ns3 {
 
@@ -166,9 +168,16 @@ TcpSocketBase::GetTypeId (void)
   .AddTraceSource ("Delta",
                    "Delta of current sampled and estimated RTT",
                    MakeTraceSourceAccessor (&TcpSocketBase::m_delta),
-                   "ns3::Time::TracedValueCallback");
+                   "ns3::Time::TracedValueCallback")
 
-   /***********************************************************************/
+   /***FIXED-SHARE Prediction Trace*******************************************/
+
+     .AddTraceSource ("FixedShare",
+                      "Estimated RTT from Fixed Share Experts",
+                      MakeTraceSourceAccessor (&TcpSocketBase::m_fixed_share),
+                      "ns3::Time::TracedValueCallback");
+
+  /***********************************************************************/
 
   return tid;
 }
@@ -2292,10 +2301,12 @@ TcpSocketBase::EstimateRtt (const TcpHeader& tcpHeader)
 
 
       /********ADDED ************************************************/
+      m_nodeID = m_node->GetId ();
       m_RttVar = m_rtt->GetVariation ();
       m_rrtt = m_rtt->MeasuredRttSample();
       m_delta = m_rtt->CurrentDelta();
-      m_nodeID = m_node->GetId ();
+      m_fixed_share =m_rtt->FixedShareEstimate();
+
       /*********************************************************************/
     }
 }

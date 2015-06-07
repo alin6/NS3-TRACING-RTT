@@ -35,10 +35,13 @@
 
 namespace ns3 {
 
+
+
 NS_LOG_COMPONENT_DEFINE ("RttEstimator");
 
 NS_OBJECT_ENSURE_REGISTERED (RttEstimator);
 
+/// Tolerance used to check reciprocal of two numbers.
 static const double TOLERANCE = 1e-6;
 
 TypeId
@@ -212,6 +215,15 @@ RttMeanDeviation::FloatingPointUpdate (Time m)
   Time difference = Abs (err) - m_estimatedVariation;
   m_estimatedVariation += Time::FromDouble (difference.ToDouble (Time::S) * m_beta, Time::S);
 
+
+
+
+  /*************************/
+  //input experts here?
+
+/*******************************/
+
+
   return;
 }
 
@@ -240,6 +252,8 @@ RttMeanDeviation::IntegerUpdate (Time m, uint32_t rttShift, uint32_t variationSh
   int64_t rttvar = m_estimatedVariation.GetInteger () << variationShift;
   rttvar += delta;
   m_estimatedVariation = Time::From (rttvar >> variationShift);
+
+
   return;
 }
 
@@ -263,12 +277,106 @@ RttMeanDeviation::Measurement (Time m)
         {
           FloatingPointUpdate (m);
         }
+#ifdef USE_FIXED_SHARE
+        NS_LOG_INFO ("IN GET MEASUREMENT" );
+        int64_t meas = m.GetInteger ();
+
+          /*****************************************************************************/
+          /* FIXED SHARE EXPERT CALCULATIONS                                           */
+          /*****************************************************************************/
+          /*Fixed-share: Calculating Loss Function*************/
+            //input experts here?
+            for (int k = 0; k < num_Experts; k++){
+              if (meas <= expertPrediction[k])
+                m_loss[k] = pow((expertPrediction[k]-meas),m_expert_penalty); //loss is calculated here
+              else
+                m_loss[k] = m_expert_penalty *  meas;
+              if (k==99);
+                //NS_LOG_INFO ("Fixed-share: Calculating Loss Function");
+            }
+            /*Fixed-share: Calculating Weights****************************************/
+            for (int k = 0; k < num_Experts; k++){
+              m_weights[k] = m_weights[k]*exp(-m_ETA*m_loss[k]);
+            }
+            for (int k = 0; k < num_Experts; k++){
+              m_pool = (m_share *  m_weights[k])+ m_pool;
+            }
+            for (int k = 0; k < num_Experts; k++){
+              m_weights[k] = ((1- m_share)* m_weights[k])+ (m_pool-(m_share *  m_weights[k]))/(num_Experts-1);
+            }
+            /******************************************/
+            /* CALC TOTAL WEIGHT                      */
+            /* AND TOTAL OF WEIGHTED PREDICTIONS      */
+            /*****************************************/
+            //RESET TO CALCULATE VALUES FOR NEXT ROUND?
+            m_sum_prediction=0;
+            m_sum_weight=0;
+            m_pool=0;
+            for (int k =0; k < num_Experts; k++){
+              m_sum_prediction += (m_weights[k]*expertPrediction[k]);
+              m_sum_weight += m_weights[k];
+            }
+            /*USE THE SUMS FOR PREDICTION*/
+            m_prediction = Time::From ( m_sum_prediction / m_sum_weight );
+
+            //Weight Normalization
+            for (int k = 0; k < num_Experts; k++){
+              m_weights[k]= m_weights[k]/m_sum_weight;
+            }
+            /*****************************************************************************/
+            /*END FIXED SHARE EXPERT CALCULATIONS                                        */
+            /*****************************************************************************/
+#endif
+
     }
   else
     { // First sample
       m_estimatedRtt = m;               // Set estimate to current
       m_estimatedVariation = m / 2;  // And variation to current / 2
       NS_LOG_DEBUG ("(first sample) m_estimatedVariation += " << m);
+
+      /*INITIALIZE ALPHAS FOR SENSE ********
+      m_sense_alpha[0] = 0.1;
+      m_sense_alpha[1] = 0.2;
+      m_sense_alpha[2] = 0.3;
+      m_sense_alpha[3] = 0.4;
+      m_sense_alpha[4] = 0.5;
+      m_sense_alpha[5] = 0.6;
+      m_sense_alpha[6] = 0.7;
+      m_sense_alpha[7] = 0.8;
+      m_sense_alpha[8] = 0.9;
+      ******************************/
+#ifdef USE_FIXED_SHARE
+      /*****************************************************************************/
+      /* FOR FIXED SHARE EXPERT CALCULATIONS                                        */
+      /*****************************************************************************/
+      /**FIXED EXPERT INITIALIZATION AT INITIAL RTT SAMPLE****************************/
+      m_sum_weight=0;
+      m_sum_prediction=0;
+      m_pool=0;
+      //THESE RANGE VARS MUST BE MANUALLY CONFIGURED PER SIMULATION SET!
+      m_range_min = 0.00625 ;   // min of expected rtt
+      m_range_max = 1.30234;   // max of expected rtt
+      std::fill_n(m_weights, 100, 0.01);
+      std::fill_n(m_loss, 100, 0);
+
+      m_expert_penalty = 2;
+      m_ETA = 2; //LEARNING RATE
+      m_share = 0.08;
+
+
+      num_Experts = 100;
+      for (int number = 0; number < num_Experts; number++){
+        /*EVEN DISTRIBUTION BETWEEN ALL EXPERTS*/
+        expertPrediction[number] = m_range_min + number*((2*(m_range_max-m_range_min))/num_Experts);
+      }
+
+      NS_LOG_INFO ("EXPERT #25 INITIAL PREDICTION VALUE: " << expertPrediction[25] );
+      /*****************************************************************************/
+      /* END OF FIXED SHARE EXPERT CALCULATIONS                                    */
+      /*****************************************************************************/
+#endif
+
     }
   m_nSamples++;
 }
@@ -299,7 +407,11 @@ RttEstimator::CurrentDelta(void) const
   return m_CurrentDelta;
 }
 
-
+Time
+RttEstimator::FixedShareEstimate(void) const
+{
+  return m_prediction;
+}
 
 
 } //namespace ns3

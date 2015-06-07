@@ -702,6 +702,7 @@ protected:
   TracedValue<Time> m_RttVar;            //!< Estimated RTT variation from actual val
   TracedValue<Time> m_rrtt;            //!< real sampled RTT values
   TracedValue<Time> m_delta;		//!< Delta sampled - estimated
+  TracedValue<Time> m_fixed_share;		//!< Fixed Share Prediction
 
   // Connections to other layers of TCP/IP
   Ipv4EndPoint*       m_endPoint;   //!< the IPv4 endpoint

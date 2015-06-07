@@ -519,7 +519,7 @@ main (int argc, char *argv[])
   } else if (mobility_model.compare ("ConstantPosition") == 0)
   {
     /*STATIONARY*/
-    mobility.SetMobilityModel ("ns3::ConstantPosition");
+    mobility.SetMobilityModel ("ns3::ConstantPositionMobilityModel");
   } else if (mobility_model.compare ("RandomWaypoint") == 0)
   {
     /*RANDOM WAY POINT*/
